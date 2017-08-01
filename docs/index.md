@@ -9,6 +9,11 @@ An f1datajunkie repo - sketches around WRC results data
 
 - WRC *Argentina Rally*, 2017: [test slideshow](wrcTest-slides-Argentina.slides.html) and [auto generated notebook](https://github.com/psychemedia/WRC_sketches/blob/master/docs/wrcTest-slides-Argentina.ipynb)
 
+Driver report demos:
+
+- [demo 1](driverdemo2/wrcTest-slides-car-3-Portugal.slides.html)
+- [demo 1](driverdemo2/wrcTest-slides-car-4-Portugal.slides.html)
+
 Related blog posts:
 
 - [Reading WRC Stage Charts](http://www.f1datajunkie.com/2017/03/reading-wrc-stage-charts.html)
