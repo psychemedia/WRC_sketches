@@ -12,7 +12,7 @@ An f1datajunkie repo - sketches around WRC results data
 Driver report demos:
 
 - [demo 1](driverdemo2/wrcTest-slides-car-3-Portugal.slides.html)
-- [demo 1](driverdemo2/wrcTest-slides-car-4-Portugal.slides.html)
+- [demo 2](driverdemo2/wrcTest-slides-car-4-Portugal.slides.html)
 
 Related blog posts:
 
