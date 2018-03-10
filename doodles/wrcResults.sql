@@ -32,11 +32,13 @@ CREATE TABLE "itinerary_stages" (
   "status" TEXT,
   "timingPrecision" TEXT,
   "itineraryLegId" INTEGER,
+  "itinerarySections.itinerarySectionId" INTEGER,
   FOREIGN KEY ("itineraryLegId") REFERENCES "itinerary_legs" ("itineraryLegId")
 );
 CREATE TABLE "itinerary_controls" (
   "code" TEXT,
   "controlId" INTEGER PRIMARY KEY,
+  "controlPenalties" TEXT,
   "distance" REAL,
   "eventId" INTEGER,
   "firstCarDueDateTime" TEXT,
@@ -49,6 +51,7 @@ CREATE TABLE "itinerary_controls" (
   "timingPrecision" TEXT,
   "type" TEXT,
   "itineraryLegId" INTEGER,
+  "itinerarySections.itinerarySectionId" INTEGER,
   FOREIGN KEY ("itineraryLegId") REFERENCES "itinerary_legs" ("itineraryLegId")
 );
 CREATE TABLE "startlists" (
@@ -85,6 +88,7 @@ CREATE TABLE "startlists" (
   "eventId" INTEGER,
   "group.name" TEXT,
   "groupId" INTEGER,
+  "group.groupId" INTEGER,
   "identifier" TEXT,
   "manufacturer.logoFilename" TEXT,
   "manufacturer.manufacturerId" INTEGER,
@@ -93,6 +97,10 @@ CREATE TABLE "startlists" (
   "priority" TEXT,
   "status" TEXT,
   "tyreManufacturer" TEXT,
+   "tag" TEXT,
+  "tag.name" TEXT,
+  "tag.tagId" INTEGER,
+  "tagId" INTEGER,
   "vehicleModel" TEXT,
   FOREIGN KEY ("eventId") REFERENCES "itinerary_event" ("eventId")
 );
@@ -121,6 +129,7 @@ CREATE TABLE "retirements" (
   "retirementDateTime" TEXT,
   "retirementDateTimeLocal" TEXT,
   "retirementId" INTEGER PRIMARY KEY,
+  "status" TEXT,
   FOREIGN KEY ("entryId") REFERENCES "startlists" ("entryId")
 );
 CREATE TABLE "stagewinners" (
@@ -159,6 +168,8 @@ CREATE TABLE "split_times" (
   "splitDateTimeLocal" TEXT,
   "splitPointId" INTEGER,
   "splitPointTimeId" INTEGER PRIMARY KEY,
+  "stageTimeDuration" TEXT,
+  "stageTimeDurationMs" REAL,
   "startDateTime" TEXT,
   "startDateTimeLocal" TEXT,
   "stageId" INTEGER,
@@ -226,7 +237,7 @@ CREATE TABLE "championship_results" (
   FOREIGN KEY ("championshipId") REFERENCES "championship_lookup" ("championshipId"),
   FOREIGN KEY ("eventId") REFERENCES "itinerary_event" ("eventId")
 );
-CREATE TABLE "championship_codrivers" (
+CREATE TABLE "championship_entries_codrivers" (
   "championshipEntryId" INTEGER PRIMARY KEY ,
   "championshipId" INTEGER,
   "entrantId" TEXT,
@@ -234,13 +245,14 @@ CREATE TABLE "championship_codrivers" (
   "Manufacturer" TEXT,
   "FirstName" TEXT,
   "CountryISO3" TEXT,
+  "CountryISO2" TEXT,
   "LastName" TEXT,
   "manufacturerId" INTEGER,
   "personId" INTEGER,
   "tyreManufacturer" TEXT,
   FOREIGN KEY ("championshipId") REFERENCES "championship_lookup" ("championshipId")
 );
-CREATE TABLE "championship_manufacturers" (
+CREATE TABLE "championship_entries_manufacturers" (
   "championshipEntryId" INTEGER PRIMARY KEY ,
   "championshipId" INTEGER,
   "entrantId" INTEGER,
@@ -262,6 +274,7 @@ CREATE TABLE "championship_rounds" (
 );
 CREATE TABLE "championship_events" (
   "categories" TEXT,
+  "clerkOfTheCourse" TEXT,
   "country.countryId" INTEGER,
   "country.iso2" TEXT,
   "country.iso3" TEXT,
@@ -275,14 +288,16 @@ CREATE TABLE "championship_events" (
   "organiserUrl" TEXT,
   "slug" TEXT,
   "startDate" TEXT,
+  "stewards" TEXT,
   "surfaces" TEXT,
+  "templateFilename" TEXT,
   "timeZoneId" TEXT,
   "timeZoneName" TEXT,
   "timeZoneOffset" INTEGER,
   "trackingEventId" INTEGER ,
   FOREIGN KEY ("eventId") REFERENCES "itinerary_event" ("eventId")
 );
-CREATE TABLE "championship_drivers" (
+CREATE TABLE "championship_entries_drivers" (
   "championshipEntryId" INTEGER PRIMARY KEY ,
   "championshipId" INTEGER,
   "entrantId" TEXT,
@@ -290,6 +305,7 @@ CREATE TABLE "championship_drivers" (
   "Manufacturer" TEXT,
   "FirstName" TEXT,
   "CountryISO3" TEXT,
+  "CountryISO2" TEXT,
   "LastName" TEXT,
   "manufacturerId" INTEGER,
   "personId" INTEGER,
