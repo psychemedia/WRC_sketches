@@ -89,7 +89,11 @@ def defan(text, *params):
     return p.defan(text)
     
 def istrue(flag, *params):
-    if flag=='True': return params[0]
+    if str(flag)=='True': return params[0]
+    else: return ''
+    
+def isfalse(flag, *params):
+    if str(flag)=='False': return params[0]
     else: return ''
     
 def isNotNull(text, *params):
@@ -102,7 +106,7 @@ def isNotNull(text, *params):
     return txt.format(text=text,pre=pre,post=post)
     
 def ifelse(flag, *params):
-    if flag=='True': return params[0]
+    if str(flag)=='True': return params[0]
     else: return params[1]
 
 def int_to_words(text, *params):
@@ -152,6 +156,7 @@ inflect_english = {
     #
     'int_to_words': int_to_words, 
     'istrue': istrue,
+    'isfalse': isfalse,
     'ifelse': ifelse,
     'isNotNull':isNotNull,
     'pdtime': pdtime,
