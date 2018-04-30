@@ -54,6 +54,12 @@ def eqint(text, *params):
         return '[condition:#{}#]'.format(params[2])
     return '[condition:#null#]'
 
+def prefix(text, *params):
+    return '{}{}'.format( params[0], text)
+
+def suffix(text, *params):
+    return '{}{}'.format(text, params[0])
+
 pytracery_logic = {
     'round':floatround,
     '_inc': inc,
@@ -68,7 +74,9 @@ pytracery_logic = {
     '_divide':divide,
     '_switch':switch,
     '_gte':gte,
-    '_eqint':eqint
+    '_eqint':eqint,
+    '_prefix': prefix,
+    '_suffix':suffix
 }
 
 '''
