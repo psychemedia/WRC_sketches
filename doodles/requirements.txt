@@ -1,0 +1,9 @@
+pandas
+unidecode
+tracery
+inflect
+pytablewriter
+kml2geojson
+folium
+selenium
+seaborn
