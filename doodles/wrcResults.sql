@@ -52,6 +52,7 @@ CREATE TABLE "itinerary_controls" (
   "type" TEXT,
   "itineraryLegId" INTEGER,
   "itinerarySections.itinerarySectionId" INTEGER,
+  "roundingPolicy" TEXT,
   FOREIGN KEY ("itineraryLegId") REFERENCES "itinerary_legs" ("itineraryLegId")
 );
 CREATE TABLE "startlists" (
@@ -96,13 +97,21 @@ CREATE TABLE "startlists" (
   "manufacturerId" INTEGER,
   "priority" TEXT,
   "status" TEXT,
-  "tyreManufacturer" TEXT,
-   "tag" TEXT,
+  "tag" TEXT,
   "tag.name" TEXT,
   "tag.tagId" INTEGER,
   "tagId" INTEGER,
+  "tyreManufacturer" TEXT,
   "vehicleModel" TEXT,
+  "entryListOrder" INTEGER,
   FOREIGN KEY ("eventId") REFERENCES "itinerary_event" ("eventId")
+);
+CREATE TABLE "roster" (
+  "fiasn" INTEGER,
+  "code" TEXT,
+  "sas-entryid" INTEGER PRIMARY KEY,
+  "roster_num" INTEGER,
+  FOREIGN KEY ("sas-entryid") REFERENCES "startlists" ("entryId")
 );
 CREATE TABLE "startlist_classes" (
   "eventClassId" INTEGER,
@@ -138,7 +147,7 @@ CREATE TABLE "stagewinners" (
   "entryId" INTEGER,
   "stageId" INTEGER,
   "stageName" TEXT,
-  PRIMARY KEY ("stageId","entryId"),
+  PRIMARY KEY ("stageId"),
   FOREIGN KEY ("entryId") REFERENCES "startlists" ("entryId"),
   FOREIGN KEY ("stageId") REFERENCES "itinerary_stages" ("stageId")
 );
@@ -178,11 +187,11 @@ CREATE TABLE "split_times" (
 );
 CREATE TABLE "stage_times_stage" (
   "diffFirst" TEXT,
-  "diffFirstMs" REAL,
+  "diffFirstMs" INTEGER,
   "diffPrev" TEXT,
-  "diffPrevMs" REAL,
+  "diffPrevMs" INTEGER,
   "elapsedDuration" TEXT,
-  "elapsedDurationMs" REAL,
+  "elapsedDurationMs" INTEGER,
   "entryId" INTEGER,
   "position" INTEGER,
   "source" TEXT,
@@ -229,7 +238,7 @@ CREATE TABLE "championship_results" (
   "dropped" INTEGER,
   "eventId" INTEGER,
   "pointsBreakdown" TEXT,
-  "position" TEXT,
+  "position" INTEGER,
   "publishedStatus" TEXT,
   "status" TEXT,
   "totalPoints" INTEGER,
@@ -238,7 +247,7 @@ CREATE TABLE "championship_results" (
   FOREIGN KEY ("eventId") REFERENCES "itinerary_event" ("eventId")
 );
 CREATE TABLE "championship_entries_codrivers" (
-  "championshipEntryId" INTEGER PRIMARY KEY ,
+  "championshipEntryId" INTEGER PRIMARY KEY,
   "championshipId" INTEGER,
   "entrantId" TEXT,
   "ManufacturerTyre" TEXT,
@@ -311,4 +320,39 @@ CREATE TABLE "championship_entries_drivers" (
   "personId" INTEGER,
   "tyreManufacturer" TEXT,
   FOREIGN KEY ("championshipId") REFERENCES "championship_lookup" ("championshipId")
+);
+CREATE TABLE "event_metadata" (
+  "_id" TEXT,
+  "availability" TEXT,
+  "date-finish" TEXT,
+  "date-start" TEXT,
+  "gallery" TEXT,
+  "hasdata" TEXT,
+  "hasfootage" TEXT,
+  "hasvideos" TEXT,
+  "id" TEXT,
+  "info-based" TEXT,
+  "info-categories" TEXT,
+  "info-date" TEXT,
+  "info-flag" TEXT,
+  "info-surface" TEXT,
+  "info-website" TEXT,
+  "kmlfile" TEXT,
+  "logo" TEXT,
+  "name" TEXT,
+  "org-website" TEXT,
+  "poi-Klo im Wald" TEXT,
+  "poilistid" TEXT,
+  "position" TEXT,
+  "rosterid" TEXT,
+  "sas-eventid" TEXT,
+  "sas-itineraryid" TEXT,
+  "sas-rallyid" TEXT,
+  "sas-trackingid" TEXT,
+  "sitid" TEXT,
+  "testid" TEXT,
+  "thumbnail" TEXT,
+  "time-zone" TEXT,
+  "tzoffset" TEXT,
+  "year" INTEGER
 );
