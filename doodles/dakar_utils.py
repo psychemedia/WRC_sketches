@@ -35,6 +35,7 @@ import urllib
 import base64
 
 import scipy
+import pandas as pd
 
 def fig2inlinehtml(fig):
     figfile = BytesIO()
