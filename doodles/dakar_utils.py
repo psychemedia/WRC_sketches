@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+
 def _get_col_loc(df, col=None, pos=None, left_of=None, right_of=None):
     ''' Return column position number. '''
     if col in df.columns:
@@ -83,6 +85,8 @@ def sparkline2(data, figsize=(2, 0.5), colband=(('red','green'),('red','green'))
     ax.set_xticks([])
     ax.set_yticks([])
 
+    #No print
+    plt.close(fig)
     
     return fig2inlinehtml(fig)
 
@@ -109,6 +113,10 @@ def sparklineStep(data, figsize=(2, 0.5), dot=False, **kwags):
     #        #print(val,type(val))
     #        if val==-1:
     #            ax.plot(idx, -0.5,'o')
+    
+    #No print
+    plt.close(fig)
+    
     return fig2inlinehtml(fig)
 
 
