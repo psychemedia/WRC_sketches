@@ -233,9 +233,14 @@ def setup_screenshot(driver,path):
     driver.set_window_size(original_size['width'], original_size['height'])
     
 
-def getTableImage(url, fn='dummy_table', basepath='.', path='.', delay=5, height=420, width=800):
+def getTableImage(url, fn='dummy_table', basepath='.', path='.', delay=5, scale_factor=2, height=420, width=800):
     ''' Render HTML file in browser and grab a screenshot. '''
-    browser = webdriver.Chrome()
+    
+    opt = webdriver.ChromeOptions()
+    opt.add_argument('--force-device-scale-factor={}'.format(scale_factor))
+
+    browser = webdriver.Chrome(options=opt)
+    
     #browser.set_window_size(width, height)
     browser.get(url)
     #Give the map tiles some time to load
@@ -252,7 +257,7 @@ def getTableImage(url, fn='dummy_table', basepath='.', path='.', delay=5, height
 
 
 
-def getTablePNG(tablehtml,basepath='.', path='testpng', fnstub='testhtml'):
+def getTablePNG(tablehtml,basepath='.', path='testpng', fnstub='testhtml', scale_factor=2):
     ''' Save HTML table as file. '''
     if not os.path.exists(path):
         os.makedirs('{}/{}'.format(basepath, path))
@@ -260,4 +265,4 @@ def getTablePNG(tablehtml,basepath='.', path='testpng', fnstub='testhtml'):
     tmpurl='file://{fn}'.format(fn=fn)
     with open(fn, 'w') as out:
         out.write(tablehtml)
-    return getTableImage(tmpurl, fnstub, basepath, path)
+    return getTableImage(tmpurl, fnstub, basepath, path, scale_factor=scale_factor)
