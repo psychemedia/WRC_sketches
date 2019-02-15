@@ -59,6 +59,11 @@ def sparkline2(data, figsize=(2, 0.5), colband=(('red','green'),('red','green'))
         color=[ colband[0][0] if c<0 else colband[0][1] for c in data  ]
         ax.plot(range(len(data)), [0]*len(data), linestyle='-', color='lightgrey')
         ax.bar(range(len(data)),data, color=color, width=0.8)
+        if dot:
+            dot = colband[1][0] if data[len(data) - 1] <0 else colband[1][1]
+            for idx, val in enumerate(data):
+                if val==0.0:
+                    ax.plot(idx, 0,'green', marker='.')#, dot)
     else:
         #Default is line plot
         ax.plot(data, linewidth=0.0)
@@ -81,7 +86,7 @@ def sparkline2(data, figsize=(2, 0.5), colband=(('red','green'),('red','green'))
     
     return fig2inlinehtml(fig)
 
-def sparklineStep(data, figsize=(2, 0.5), **kwags):
+def sparklineStep(data, figsize=(2, 0.5), dot=False, **kwags):
     #data = [0 if pd.isnull(d) else d for d in data]
     
     fig, ax = plt.subplots(1, 1, figsize=figsize, **kwags)
@@ -99,6 +104,11 @@ def sparklineStep(data, figsize=(2, 0.5), **kwags):
     ax.set_xticks([])
     ax.set_yticks([])
     
+    #if dot:
+    #    for idx, val in enumerate(data):
+    #        #print(val,type(val))
+    #        if val==-1:
+    #            ax.plot(idx, -0.5,'o')
     return fig2inlinehtml(fig)
 
 
