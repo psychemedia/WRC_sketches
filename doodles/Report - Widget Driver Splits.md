@@ -19,17 +19,9 @@ ds= __import__("Report - Driver Splits")
 ```
 
 ```python
-import pandas as pd
-q_drivers='SELECT `driver.code` AS code  FROM startlists st JOIN startlist_classes sc ON sc.entryid = st.entryid AND name="{}"'
-
-q_classes='SELECT DISTINCT(name) AS name FROM startlists st JOIN startlist_classes sc ON sc.entryid = st.entryid'
-
-
-
-```
-
-```python
 import sqlite3
+from IPython.display import HTML
+import pandas as pd
 
 dbname='sweden19.db'
 conn = sqlite3.connect(dbname)
@@ -39,7 +31,9 @@ year=2019
 ```
 
 ```python
-from IPython.display import HTML
+q_drivers='SELECT `driver.code` AS code  FROM startlists st JOIN startlist_classes sc ON sc.entryid = st.entryid AND name="{}"'
+
+q_classes='SELECT DISTINCT(name) AS name FROM startlists st JOIN startlist_classes sc ON sc.entryid = st.entryid'
 
 def stage_chart(rc,driver):
     s2 = ds.getDriverSplitsReport(conn, rally, 'SS3', driver, rc)
