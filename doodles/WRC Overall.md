@@ -12,6 +12,10 @@ jupyter:
     name: python3
 ---
 
+# WRC Overall
+
+Generate a graphic enriched tabel summarising rally evolution over multiple stages, rebased to a specific driver.
+
 ```python
 if __name__=='__main__':
     %load_ext autoreload
