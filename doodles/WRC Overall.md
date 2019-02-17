@@ -175,6 +175,33 @@ display(HTML(s2))
 dakar.getTablePNG(s2, fnstub='overall_{}_'.format(wREBASE),scale_factor=2)
 ```
 
+## Ultimate Margins
+
+...aka *time left on table*...
+
+
+${}_{N}\Delta_i = \sum_{s=1}^N \Delta_{i,s}$ where $\Delta_{i,s}=t_{i,w}-t_{w,s}$ and $t_{i,s}$ is the time on stage $s$ for driver $i$ and $t_{w,s}$ is time on stage $s$ for the stage winner, $w$. We then plot $y={}_{N}\Delta_i$ against $x=s:1..N$ for driver $i$.
+
+We can also look at turning that into a percentage, *cf.* Formula One 1075 times.
+
+For example:${}_N\nabla_{i} = \frac{\sum_{s=1}^N t_{s,i}}{\sum_{s=1}^N t_{s,w}}$ and again plot $y={}_{N}\nabla_i$ against $x=s:1..N$ for driver $i$.
+
+Note that this gives meaning to "giving 110%" in a roundabout sort of way. A driver might be running ar 105% winner time in early stages, then improve to bring this down to 103%..
+
+
+We can also look to adding lower margins to table, e.g. searching for `max(positive delta)` to find the amount of time lost to the leader on each stage.
+
+
+Leader rebasing: also consider dynamic / leader rebasing; eg rebaser kernel is `{'SS1':'LOE','SS2':'NEU', etc...}` then get times for each of those to rebase against.
+
+```python
+
+```
+
+```python
+
+```
+
 ```python
 #Need a WRC query for this
 data
