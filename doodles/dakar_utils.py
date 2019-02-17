@@ -175,11 +175,14 @@ def color_negative(val):
     return 'color: %s' % color
 
 
-def moreStyleDriverSplitReportBaseDataframe(rb2,ss, caption=None):
+def moreStyleDriverSplitReportBaseDataframe(rb2, ss, caption=None):
     ''' Style the driver split report dataframe. '''
     
     if rb2.empty: return ''
-        
+
+    #Do we need to ensure this?
+    rb2 = rb2.fillna(0)
+    
     def _subsetter(cols, items):
         ''' Generate a subset of valid columns from a list. '''
         return [c for c in cols if c in items]
@@ -229,7 +232,7 @@ def moreStyleDriverSplitReportBaseDataframe(rb2,ss, caption=None):
         s2.set_caption(caption)
 
     #nan issue: https://github.com/pandas-dev/pandas/issues/21527
-    return s2.render().replace('nan','')
+    return s2.render().replace('nan','').replace('_overall','<br/>Overall')
 
 import os
 import time
