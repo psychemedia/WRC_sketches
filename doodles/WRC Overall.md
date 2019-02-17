@@ -118,6 +118,9 @@ schedule = dbGetSSitinerary(conn2,rally)
 #https://stackoverflow.com/a/41638343/454773
 schedule['index'] = schedule[['date']].merge( schedule.drop_duplicates( 'date' ).reset_index(), on='date' )['index'].rank(method='dense').astype(int)
 schedule[['date','code','section','order','index']]
+def listify(items):
+    ''' Turn an argument to a list. '''
+    return [] if items is None else items if isinstance(items, list) else [items]
 ```
 
 ```python
