@@ -80,7 +80,7 @@ YEAR=2019
 rc='RC1'
 rally='Sweden'
 typ='overall'
-wREBASE='LOE'
+wREBASE='TÄN'
 ```
 
 ### Day Based Reporting
@@ -186,13 +186,11 @@ def overallAtLastStage(conn, rally, rc, typ, stages=None):
 def generateOverallResultsChartable(conn, rally, rc, rebase=None, stages=None, days=None, sections=None):
     ''' Generate overall results table for a particular event. '''
     
-    stages = listify(stages)
-    
     if days:
-        stages = stages + getStagesByDay(daynums=days)['code'].tolist()
+        stages = listify(stages) + getStagesByDay(daynums=days)['code'].tolist()
     
     if sections:
-        stages = stages + getStagesByDay(sections=sections)['code'].tolist()
+        stages = listify(stages) + getStagesByDay(sections=sections)['code'].tolist()
         
     wrc = pd.merge(codes, positionStep(conn, rally, rc, 'overall', stages=stages)[['overallPosition']], left_index=True, right_index=True)
     
@@ -229,12 +227,20 @@ tmp
 ```
 
 ```python
-s2 = moreStyleDriverSplitReportBaseDataframe(tmp.fillna(0),'')
+wREBASE='NEU'
+tmp = generateOverallResultsChartable(conn2, rally, rc, rebase=wREBASE)
+
+```
+
+```python
+s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
 
 #Introduce a dot marker to highlight winner
 display(HTML(s2))
 dakar.getTablePNG(s2, fnstub='overall_{}_'.format(wREBASE),scale_factor=2)
+
 ```
+
 
 ## Ultimate Margins
 

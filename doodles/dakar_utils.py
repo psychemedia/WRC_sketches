@@ -1,3 +1,17 @@
+# ---
+# jupyter:
+#   jupytext:
+#     text_representation:
+#       extension: .py
+#       format_name: light
+#       format_version: '1.3'
+#       jupytext_version: 0.8.6
+#   kernelspec:
+#     display_name: Python 3
+#     language: python
+#     name: python3
+# ---
+
 import matplotlib.pyplot as plt
 
 def _get_col_loc(df, col=None, pos=None, left_of=None, right_of=None):
@@ -27,8 +41,8 @@ def insertColumn(df, col, data, pos=None, left_of=None, right_of=None):
     pos =  _get_col_loc(df, col, pos, left_of, right_of)
     print(pos)
     df.insert(pos, col, data)
-    
-    
+
+
 #https://github.com/iiSeymour/sparkline-nb/blob/master/sparkline-nb.ipynb
 import matplotlib.pyplot as plt
 
@@ -231,7 +245,7 @@ def setup_screenshot(driver,path):
     # driver.save_screenshot(path)  # has scrollbar
     driver.find_element_by_tag_name('body').screenshot(path)  # avoids scrollbar
     driver.set_window_size(original_size['width'], original_size['height'])
-    
+
 
 def getTableImage(url, fn='dummy_table', basepath='.', path='.', delay=5, scale_factor=2, height=420, width=800):
     ''' Render HTML file in browser and grab a screenshot. '''
