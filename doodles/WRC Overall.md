@@ -130,7 +130,7 @@ def gapToLeaderBar(conn, rally, rc, typ):
     else:
         Xtmpq.columns = ['SS_{}_{}'.format(c, typ) for c in Xtmpq.columns]
     k = '{}GapToLeader'.format(typ)
-    Xtmpq[k]= Xtmpq[[c for c in Xtmpq.columns ]].values.tolist()
+    Xtmpq[k] = Xtmpq[[c for c in Xtmpq.columns ]].values.tolist()
     Xtmpq[k] = Xtmpq[k].apply(lambda x: [-y for y in x])
     Xtmpq[k] = Xtmpq[k].apply(sparkline2, typ='bar', dot=True)
     return Xtmpq 
@@ -156,7 +156,7 @@ def positionStep(conn, rally, rc, typ):
     Xtmpq = Xtmpq[['entryId','snum', 'position']].pivot(index='entryId',columns='snum',values='position')
     Xtmpq.columns = ['SS_{}_{}_pos'.format(c, typ) for c in Xtmpq.columns]
     k = '{}Position'.format(typ)
-    Xtmpq[k]= Xtmpq[[c for c in Xtmpq.columns ]].values.tolist()
+    Xtmpq[k] = Xtmpq[[c for c in Xtmpq.columns ]].values.tolist()
     Xtmpq[k] = Xtmpq[k].apply(lambda x: [-y for y in x])
     Xtmpq[k] = Xtmpq[k].apply(sparklineStep)
     return Xtmpq 
