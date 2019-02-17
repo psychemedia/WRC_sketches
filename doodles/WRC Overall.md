@@ -33,11 +33,6 @@ if __name__=='__main__':
 ```
 
 ```python
-#TO DO: need a filter for particular day
-#eg day 1, day 2.
-```
-
-```python
 import pandas as pd
 
 from IPython.display import HTML
@@ -86,6 +81,45 @@ rally='Sweden'
 typ='overall'
 wREBASE='LOE'
 
+### Day Based Reporting
+
+How do we limit the report to just show the stages on a particular day, or particular loop?
+
+```python
+#Based on a function in Itinerary Basics
+def dbGetSSitinerary(conn, rally, year=YEAR):
+    ''' Get dataframe containing time control details for a specified rally. '''
+    q='''
+    SELECT il.name AS date, itc.*, ce.timeZoneOffset,
+         isc.itinerarySectionId, isc.name AS section, isc.`order`
+    FROM itinerary_controls itc
+    JOIN championship_events ce ON itc.eventId=ce.eventId
+    JOIN itinerary_sections isc ON itc.`itinerarySections.itinerarySectionId`=isc.itinerarySectionId
+    JOIN itinerary_legs il ON isc.itineraryLegId=il.itineraryLegId
+    WHERE ce.`country.name`="{rally}" AND strftime('%Y', startDate)='{year}'
+            AND firstCarDueDateTimeLocal NOT NULL 
+            AND itc.type='StageStart'
+            ORDER BY firstCarDueDateTimeLocal 
+    '''.format(rally=rally, year=year)
+    time_controls = pd.read_sql(q,conn)
+    time_controls['firstCarDueDateTimeLocal']=pd.to_datetime(time_controls['firstCarDueDateTimeLocal'])
+    return time_controls
+```
+
+Create a day index so that we can limit reports to show a particular day, set of days, or up to and including a particular day.
+
+We could also support reporting by a section selection.
+
+```python
+schedule = dbGetSSitinerary(conn2,rally)
+#The grouper will return a group ID, but not in order?
+#schedule['daynum'] = schedule.groupby('date').grouper.label_info
+#https://stackoverflow.com/a/41638343/454773
+schedule['index'] = schedule[['date']].merge( schedule.drop_duplicates( 'date' ).reset_index(), on='date' )['index'].rank(method='dense').astype(int)
+schedule[['date','code','section','order','index']]
+```
+
+```python
 def gapToLeaderBar(conn, rally, rc, typ):
     Xtmpq = sr.dbGetStageRank(conn, rally, rc, typ)#.head()
     Xtmpq = Xtmpq[['entryId','snum', 'diffFirstMs']].pivot(index='entryId',columns='snum',values='diffFirstMs')
