@@ -48,17 +48,6 @@ from dakar_utils import moveColumn, sparkline2, sparklineStep, moreStyleDriverSp
 ```
 
 ```python
-import sqlite3
-
-dbname='dakar_sql.sqlite'
-
-conn = sqlite3.connect(dbname)
-
-c = conn.cursor()
-
-```
-
-```python
 dbname2='sweden19.db'
 conn2 = sqlite3.connect(dbname2)
 
