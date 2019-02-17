@@ -76,6 +76,7 @@ codes.head()
 
 ```python
 #For WRC
+YEAR=2019
 rc='RC1'
 rally='Sweden'
 typ='overall'
