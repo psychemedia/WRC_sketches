@@ -628,7 +628,8 @@ if __name__=='__main__':
 ```
 
 ```python
-def getDriverSplitsReport(conn, rally, ss, drivercode, rc='RC1', typ='overall', order=None, caption=None, bars=True):
+def getDriverSplitsReport(conn, rally, ss, drivercode, rc='RC1', typ='overall', 
+                          order=None, caption=None, bars=True, dropcols=None):
     ''' Generate dataframe report relative to a given driver on a given stage.
             order: sorts table according to: overall | previous | roadpos
             
@@ -636,6 +637,7 @@ def getDriverSplitsReport(conn, rally, ss, drivercode, rc='RC1', typ='overall', 
         In this case, default to a simple overal stage (without splits) reporter table.
     '''
     
+    dropcols = [] if dropcols is None else dropcols
     #TO DO - this needs to fail gracefully if there are no splits
     
     #Allow the drivercode to be relative to a position
@@ -710,6 +712,9 @@ def getDriverSplitsReport(conn, rally, ss, drivercode, rc='RC1', typ='overall', 
     if caption =='auto':
         caption = 'Rebased stage split times for {}{}.'.format('{}, '.format(drivercode), ss)
 
+    dc = [c for c in dropcols if c in rb2.columns]
+    rb2 = rb2.drop(columns=dc)
+        
     #s = styleDriverSplitReportBaseDataframe(rb2, ss)
     s2 = moreStyleDriverSplitReportBaseDataframe(rb2,ss, caption)
     return s2
