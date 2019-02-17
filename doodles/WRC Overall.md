@@ -81,6 +81,7 @@ rc='RC1'
 rally='Sweden'
 typ='overall'
 wREBASE='LOE'
+```
 
 ### Day Based Reporting
 
@@ -112,20 +113,35 @@ Create a day index so that we can limit reports to show a particular day, set of
 We could also support reporting by a section selection.
 
 ```python
-schedule = dbGetSSitinerary(conn2,rally)
-#The grouper will return a group ID, but not in order?
-#schedule['daynum'] = schedule.groupby('date').grouper.label_info
-#https://stackoverflow.com/a/41638343/454773
-schedule['index'] = schedule[['date']].merge( schedule.drop_duplicates( 'date' ).reset_index(), on='date' )['index'].rank(method='dense').astype(int)
-schedule[['date','code','section','order','index']]
 def listify(items):
     ''' Turn an argument to a list. '''
     return [] if items is None else items if isinstance(items, list) else [items]
+
+
+def getStagesByDay(daynums=None, sections=None):
+    ''' Return the stages for a given day, days, section or sections. '''
+    daynums = listify(daynums)
+    sections = listify(sections)
+    
+    schedule = dbGetSSitinerary(conn2,rally)
+    #The grouper will return a group ID, but not in order?
+    #schedule['daynum'] = schedule.groupby('date').grouper.label_info
+    #https://stackoverflow.com/a/41638343/454773
+    schedule['index'] = schedule[['date']].merge( schedule.drop_duplicates( 'date' ).reset_index(), on='date' )['index'].rank(method='dense').astype(int)
+    tmp = schedule[['date','code','section','order','index']]
+    if daynums:
+        tmp = tmp[tmp['index'].isin(daynums)]
+    if sections:
+        tmp = tmp[tmp['order'].isin(sections)]
+    
+    return tmp
+
+getStagesByDay(sections=2)
 ```
 
 ```python
-def gapToLeaderBar(conn, rally, rc, typ):
-    Xtmpq = sr.dbGetStageRank(conn, rally, rc, typ)#.head()
+def gapToLeaderBar(conn, rally, rc, typ, stages=None):
+    Xtmpq = sr.dbGetStageRank(conn, rally, rc, typ, stages)#.head()
     Xtmpq = Xtmpq[['entryId','snum', 'diffFirstMs']].pivot(index='entryId',columns='snum',values='diffFirstMs')
     Xtmpq = Xtmpq/1000
     if typ=='stage':
@@ -138,24 +154,18 @@ def gapToLeaderBar(conn, rally, rc, typ):
     Xtmpq[k] = Xtmpq[k].apply(sparkline2, typ='bar', dot=True)
     return Xtmpq 
 
-def rebaserGap(df):
+def gapBar(df):
     ''' Bar chart showing rebased gap at each stage. '''
     col='Gap'
     df[col] = df[[c for c in df.columns if c.startswith('SS_') and c.endswith('_overall')]].values.tolist()
     df[col] = df[col].apply(lambda x: [-y for y in x])
     df[col] = df[col].apply(sparkline2, typ='bar', dot=False)
     return df
-    
-wrc = pd.merge(codes,gapToLeaderBar(conn2, rally, rc, 'overall'), left_index=True, right_index=True)
-
-wrc = pd.merge(wrc,gapToLeaderBar(conn2, rally, rc, 'stage'), left_index=True, right_index=True)
-
-wrc.head(10)
 ```
 
 ```python
-def positionStep(conn, rally, rc, typ):
-    Xtmpq = sr.dbGetStageRank(conn, rally, rc, typ)#.head()
+def positionStep(conn, rally, rc, typ, stages=None):
+    Xtmpq = sr.dbGetStageRank(conn, rally, rc, typ, stages)#.head()
     Xtmpq = Xtmpq[['entryId','snum', 'position']].pivot(index='entryId',columns='snum',values='position')
     Xtmpq.columns = ['SS_{}_{}_pos'.format(c, typ) for c in Xtmpq.columns]
     k = '{}Position'.format(typ)
@@ -164,38 +174,62 @@ def positionStep(conn, rally, rc, typ):
     Xtmpq[k] = Xtmpq[k].apply(sparklineStep)
     return Xtmpq 
 
-def overallAtLastStage(conn, rally, rc, typ):
-    Xtmpq = sr.dbGetStageRank(conn, rally, rc, typ)#.head()
+# TO DO - this is really clunky; need a better way
+def overallAtLastStage(conn, rally, rc, typ, stages=None):
+    ''' Get overall rank associated with last stage in table. '''
+    Xtmpq = sr.dbGetStageRank(conn, rally, rc, typ, stages)#.head()
     Xtmpq = Xtmpq[['entryId','snum', 'position']].pivot(index='entryId',columns='snum',values='position')
     last = Xtmpq.columns
     return Xtmpq[[last[-1]]]
     
+
+def generateOverallResultsChartable(conn, rally, rc, rebase=None, stages=None, days=None, sections=None):
+    ''' Generate overall results table for a particular event. '''
     
-wrc =  pd.merge(wrc,positionStep(conn2, rally, rc, typ='stage')[['stagePosition']], left_index=True, right_index=True)
-wrc =  pd.merge(wrc,positionStep(conn2, rally, rc, typ='overall')[['overallPosition']], left_index=True, right_index=True)
-wrc['Pos'] = overallAtLastStage(conn2, rally, rc, typ)
+    stages = listify(stages)
+    
+    if days:
+        stages = stages + getStagesByDay(daynums=days)['code'].tolist()
+    
+    if sections:
+        stages = stages + getStagesByDay(sections=sections)['code'].tolist()
+        
+    wrc = pd.merge(codes, positionStep(conn, rally, rc, 'overall', stages=stages)[['overallPosition']], left_index=True, right_index=True)
+    
+    wrc = pd.merge(wrc, gapToLeaderBar(conn, rally, rc, 'overall', stages), left_index=True, right_index=True)
+    moveColumn(wrc, 'overallGapToLeader', right_of='overallPosition')
+    
+    
+    wrc['Pos'] = overallAtLastStage(conn, rally, rc, typ, stages)
+    moveColumn(wrc, 'Pos', right_of='overallGapToLeader')
+    
+    wrc = pd.merge(wrc, positionStep(conn, rally, rc, 'stage', stages)[['stagePosition']], left_index=True, right_index=True)
+    
+    wrc = pd.merge(wrc, gapToLeaderBar(conn, rally, rc, 'stage', stages), left_index=True, right_index=True)
+    wrc.rename(columns={'stageGapToLeader':'stageWinnerGap'},inplace=True)
+    moveColumn(wrc, 'stageWinnerGap', right_of='stagePosition')
 
-wrc = wrc.sort_values('Pos', ascending=True)
-wrc=wrc.set_index('Code',drop=True)
-cols = [c for c in wrc.columns if c.startswith('SS')]
-wrc.rename(columns={'stageGapToLeader':'stageWinnerGap'},inplace=True)
-wrc[cols] = -wrc[cols].apply(_rebaseTimes,bib=wREBASE, axis=0)
 
-wrc = rebaserGap(wrc)
+    wrc = wrc.sort_values('Pos', ascending=True)
+    wrc=wrc.set_index('Code',drop=True)
+    cols = [c for c in wrc.columns if c.startswith('SS')]
+      
+    if rebase is not None:
+        wrc[cols] = -wrc[cols].apply(_rebaseTimes, bib=rebase, axis=0)
+    
+    #This needs to be done after rebasing
+    wrc = gapBar(wrc)
+    moveColumn(wrc, 'Gap', left_of='stagePosition')
+    
+    return wrc
+
+tmp = generateOverallResultsChartable(conn2, rally, rc, rebase=wREBASE, days=1, sections=3)
+tmp                
+    
 ```
 
 ```python
-moveColumn(wrc, 'Gap',left_of='SS_1')
-moveColumn(wrc, 'stagePosition',left_of='SS_1')
-moveColumn(wrc, 'stageWinnerGap',left_of='SS_1')
-moveColumn(wrc, 'overallPosition',left_of='SS_1_overall')
-moveColumn(wrc, 'overallGapToLeader',left_of='SS_1_overall')
-moveColumn(wrc, 'Pos',left_of='SS_1_overall') #pos=None, left_of=None, right_of=None)
-wrc
-```
-
-```python
-s2 = moreStyleDriverSplitReportBaseDataframe(wrc.fillna(0),'')
+s2 = moreStyleDriverSplitReportBaseDataframe(tmp.fillna(0),'')
 
 #Introduce a dot marker to highlight winner
 display(HTML(s2))
