@@ -69,15 +69,19 @@ import pytablewriter
 import six
 from numpy import NaN
 
+#Set near zero display to zero
+#Doesn't have any effect?
+pd.set_option('display.chop_threshold', 0.001)
+
 #dbname='wrc18.db'
 #dbname='france18.db'
 #conn = sqlite3.connect(dbname)
 
 if __name__=='__main__':
     #dbname='wrc18.db'
-    dbname='sweden19.db'
+    dbname='mexico19.db'
     conn = sqlite3.connect(dbname)
-    rally='Sweden'
+    rally='Mexico'
     rc='RC1'
     year=2019
     #ss='SS4'
@@ -517,7 +521,9 @@ def moreStyleDriverSplitReportBaseDataframe(rb2,ss, caption=None):
     # This may help us to help identify any obvious road position effect when sorting stage times by stage rank
     cm=sns.light_palette((210, 90, 60), input="husl",as_cmap=True)
 
-    s2=(rb2.style
+    #Limit the display to 1 dp
+    s2=(rb2.round(1).style
+        #.set_precision(1)
         .background_gradient(cmap=cm, subset=_subsetter(rb2.columns, ['Road Position']))
         .applymap(color_negative,
                   subset=[c for c in rb2.columns if isinstance(c, int) and c not in ['Overall Position', 'Road Position']])
@@ -535,7 +541,8 @@ def moreStyleDriverSplitReportBaseDataframe(rb2,ss, caption=None):
         s2.set_caption(caption)
 
     #nan issue: https://github.com/pandas-dev/pandas/issues/21527
-    return s2.render().replace('nan','')
+
+    return s2.render().replace('nan','')#.replace('-0','').replace('0','')
 
 if __name__=='__main__':
     rb2c = cleanDriverSplitReportBaseDataframe(rb2.copy(), ss)
@@ -662,6 +669,8 @@ def getDriverSplitsReport(conn, rally, ss, drivercode, rc='RC1', typ='overall',
         return getDriverStageReport(conn, rally, ss, drivercode, rc=rc, order=order, caption=caption)
     
     #Get the splits
+    #Splits give overall stage time in milliseconds (stageTimeDurationMs)
+    #WRC timing rounds up to tenth?
     splits = ssd.dbGetSplits(conn,rally,ss,rc)
     elapseddurations=ssd.getElapsedDurations(splits)
     
@@ -676,8 +685,11 @@ def getDriverSplitsReport(conn, rally, ss, drivercode, rc='RC1', typ='overall',
 
     rbp = pivotRebasedSplits(rebasedSplits)
 
-    #Get stage result to merge in stage position
     stageresult=sr.getEnrichedStageRank(conn, rally, rc=rc, stages=ss,typ='stage')[['drivercode','position']]
+    #Stage position can also be obtained from stage time in milliseconds in splits report?
+    #stageresult = splitdurations[['drivercode','stageTimeDurationMs']].drop_duplicates()
+    #stageresult['Stage Rank']=stageresult['stageTimeDurationMs'].rank()
+    #stageresult= stageresult.drop(columns=['stageTimeDurationMs'])
 
     rb2=getDriverSplitReportBaseDataframe(rbe, rbp, zz, roadPos, stageresult, ss)
     rb2 = cleanDriverSplitReportBaseDataframe(rb2, ss)
@@ -686,11 +698,10 @@ def getDriverSplitsReport(conn, rally, ss, drivercode, rc='RC1', typ='overall',
         
     if ss=='SS1':
         rb2['Previous']=NaN
-
     if order=='overall':
         rb2=rb2.sort_values('Overall Position', ascending=True)
         #Remove the redundant column
-        rb2=rb2.drop(['Overall Position'], axis=1)
+        rb2=rb2.drop(columns = ['Overall Position'])
         #rb2=rb2.rename(columns={'Overall Position':'{} Overall*'.format(ss)})
     elif order=='previous':
         rb2=rb2.fillna(0).sort_values('Previous', ascending=False).replace(0,NaN)
@@ -699,14 +710,14 @@ def getDriverSplitsReport(conn, rally, ss, drivercode, rc='RC1', typ='overall',
         rb2=rb2.sort_values('Road Position', ascending=True)
         #rb2 = rb2.rename(columns={'Road Position':'Road Position*'})
     elif order=='stage':
-        rb2.sort_values('Stage Rank', ascending=True)
+        rb2=rb2.sort_values('Stage Rank', ascending=True)
         #Remove the redundant column
-        rb2=rb2.drop(['Stage Rank'], axis=1)
+        rb2=rb2.drop(columns=['Stage Rank'])
     else:
         #Default is stage order
-        rb2.sort_values('Stage Rank', ascending=True)
+        rb2=rb2.sort_values('Stage Rank', ascending=True)
         #Remove the redundant column
-        rb2=rb2.drop(['Stage Rank'], axis=1)
+        rb2=rb2.drop(columns = ['Stage Rank'])
         rb2 = rb2.rename(columns={'{} Overall'.format(ss):'{} Overall*'.format(ss)})
 
     if caption =='auto':
@@ -720,14 +731,14 @@ def getDriverSplitsReport(conn, rally, ss, drivercode, rc='RC1', typ='overall',
     return s2
 
 if __name__=='__main__':
-    s2 = getDriverSplitsReport(conn, rally, ss, drivercode, rc, typ)#, caption='auto')
+    s2 = getDriverSplitsReport(conn, rally, 'SS21', drivercode, rc, typ)#, caption='auto')
     display(HTML(s2))
 ```
 
 ```python
 if __name__=='__main__':
-    ss='SS16'
-    d='MIK'
+    ss='SS11'
+    d='MEE'
     s2 = getDriverSplitsReport(conn, rally, ss, d, rc, typ)
     display(HTML(s2))
 ```
@@ -875,6 +886,4 @@ if __name__=='__main__':
 
 ```
 
-```python
 
-```
