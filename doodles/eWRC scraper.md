@@ -57,9 +57,46 @@ soup = BeautifulSoup(html, 'lxml') # Parse the HTML as a string
     
 tables = soup.find_all('table')
 #tables = LH.fromstring(html).xpath('//table')
-df = pd.read_html('<html><body>{}</body></html>'.format(tables[0]))[0]
-df['badge'] = [img.find('img')['src'] for img in tables[0].findAll("td", {"class": "final-results-icon"}) ]
-df.head()
+df_rally_overall = pd.read_html('<html><body>{}</body></html>'.format(tables[0]))[0]
+df_rally_overall['badge'] = [img.find('img')['src'] for img in tables[0].findAll("td", {"class": "final-results-icon"}) ]
+df_rally_overall.dropna(how='all', axis=1, inplace=True)
+df_rally_overall.head()
+```
+
+```python
+df_rally_overall.columns=['Pos','CarNum','driverNav','Model','Class', 'Time','GapDiff', 'Speedkm', 'badge']
+```
+
+```python
+#Get the entry ID - use this as the unique key
+#in column 3, <a title='Entry info and stats'>
+df_rally_overall['entryId']=[a['href'] for a in tables[0].findAll("a", {"title": "Entry info and stats"}) ]
+df_rally_overall.set_index('entryId', inplace=True)
+df_rally_overall.head()
+```
+
+```python
+df_rally_overall['Historic']= df_rally_overall['Class'].str.contains('Historic')
+df_rally_overall['Class']= df_rally_overall['Class'].str.replace('Historic','')
+df_rally_overall['Class'].unique()
+```
+
+```python
+df_rally_overall["Class Rank"] = df_rally_overall.groupby("Class")["Pos"].rank(method='min')
+df_rally_overall.head()
+
+```
+
+```python
+df_rally_overall.tail()
+```
+
+```python
+
+```
+
+```python
+#TO DO - pull out retirements table
 ```
 
 ## Stage Results
@@ -171,6 +208,18 @@ We can split those columns out on a regular expression.
 df['Speedkm'].str.extract(r'(?P<Speed>[^.]*\.[\d])(?P<unknown>.*)').head()
 ```
 
+```python
+import unicodedata
+
+def cleanString(s):
+    s = unicodedata.normalize("NFKD", str(s))
+    #replace multiple whitespace with single space
+    s = ' '.join(s.split())
+    
+    return s
+    
+```
+
 The `Desc` column is scraped as `Driver Name - Navigator NameCar Model`. We can either parse these out with a camelcase pattern matcher, or perhaps more easily just scrape the original HTML using the pattern we developed abobve to scrape glad image URIs.
 
 ```python
@@ -213,29 +262,17 @@ groups = [times[i:i+groupsize] for i in range(1, len(times), groupsize)]
 ```
 
 ```python
-pos=71
+_pos=71
 
 
 NAME_SUBGROUP = 0
 TIME_SUBGROUP = 1
 
-groups[pos][NAME_SUBGROUP], groups[pos][TIME_SUBGROUP]
+groups[_pos][NAME_SUBGROUP], groups[_pos][TIME_SUBGROUP]
 ```
 
 ```python
-import unicodedata
-
-def cleanString(s):
-    s = unicodedata.normalize("NFKD", str(s))
-    #replace multiple whitespace with single space
-    s = ' '.join(s.split())
-    
-    return s
-    
-```
-
-```python
-driverNav = cleanString(groups[pos][NAME_SUBGROUP].find('a').text)
+driverNav = cleanString(groups[_pos][NAME_SUBGROUP].find('a').text)
 driver,navigator = driverNav.split(' - ')
 driver,navigator
 ```
@@ -246,32 +283,37 @@ import re
 
 #Extract the car number
 carNumMatch = lambda txt: re.search('#(?P<carNum>[\d]*)', cleanString(txt))
-carNum = carNumMatch(groups[pos][NAME_SUBGROUP]).group('carNum')
+carNum = carNumMatch(groups[_pos][NAME_SUBGROUP]).group('carNum')
 carNum
 ```
 
 ```python
 #Extract the car model
 carModelMatch = lambda txt:  re.search('</a>\s*(?P<carModel>.*)</div>', cleanString(txt))
-carModel = carModelMatch(groups[pos][NAME_SUBGROUP]).group('carModel')
+carModel = carModelMatch(groups[_pos][NAME_SUBGROUP]).group('carModel')
 carModel
 ```
 
 ```python
-entryId = groups[pos][NAME_SUBGROUP].find('a')['href']
+entryId = groups[_pos][NAME_SUBGROUP].find('a')['href']
 entryId
 ```
 
 ```python
 #retired
-retired = '<span class="r8_bold_red">R</span>' in cleanString(groups[pos][NAME_SUBGROUP])
+retired = '<span class="r8_bold_red">R</span>' in cleanString(groups[_pos][NAME_SUBGROUP])
 retired
+```
+
+```python
+position = groups[_pos][NAME_SUBGROUP].find('span').text
+position
 ```
 
 ```python
 #cartimes
 
-for c in groups[pos][TIME_SUBGROUP].findAll('div')[:-1]:
+for c in groups[_pos][TIME_SUBGROUP].findAll('div')[:-1]:
     #Last row is distinct
     print(cleanString(c))
 ```
@@ -285,7 +327,7 @@ for c in groups[pos][TIME_SUBGROUP].findAll('div')[:-1]:
 from parse import parse
 pattern = '''<div class="times-one-time">{stagetime}<br/><span class="times-after">{overalltime}</span><br/>{pos}</div>'''
 
-txt = groups[pos][TIME_SUBGROUP].findAll('div')[4]
+txt = groups[_pos][TIME_SUBGROUP].findAll('div')[4]
 #Tidy up
 txt = cleanString(txt)
 parse(pattern, txt )
@@ -312,11 +354,13 @@ for g in groups:
     retired = '<span class="r8_bold_red">R</span>' in str(g[NAME_SUBGROUP])
     carNum = carNumMatch(g[NAME_SUBGROUP]).group('carNum')
     carModel = carModelMatch(g[NAME_SUBGROUP]).group('carModel')
-
+    classification = pd.to_numeric(g[NAME_SUBGROUP].find('span').text.replace('R','').strip('').strip('.'))
+    
     stagetimes = []
     overalltimes = []
     penalties=[]
-    pos = []
+    positions = []
+    
     for stages in g[TIME_SUBGROUP].findAll('div'):
         txt = cleanString(stages)
         stagetimes_data = parse(pattern, txt )
@@ -336,7 +380,7 @@ for g in groups:
                 p = int(p[-2].split('.')[0])
             else:
                 p = int(p[-1].strip('.'))
-            pos.append(p)
+            positions.append(p)
             penalties.append(penalty)
                         
     t.append({'entryId':entryId,
@@ -345,9 +389,10 @@ for g in groups:
               'carNum':carNum,
               'carModel':carModel,
               'retired':retired,
+              'Pos': classification,
              'stagetimes':stagetimes,
              'overalltimes':overalltimes,
-             'pos':pos, 'penalties':penalties})
+             'positions':positions, 'penalties':penalties})
 
 
 df = pd.DataFrame(t).set_index(['entryId'])
@@ -360,7 +405,7 @@ df.tail()
 
 ```python
 df_overall = pd.DataFrame(df['overalltimes'].tolist(), index= df.index)
-#df_overall.columns = cols
+df_overall.columns = range(1,df_overall.shape[1]+1)
 df_overall.head()
 ```
 
@@ -369,13 +414,15 @@ df_overall.tail()
 ```
 
 ```python
-df_overall_pos = pd.DataFrame(df['pos'].tolist(), index= df.index)
+df_overall_pos = pd.DataFrame(df['positions'].tolist(), index= df.index)
+df_overall_pos.columns = range(1,df_overall_pos.shape[1]+1)
 df_overall_pos.head()
 ```
 
 ```python
 df_stages = pd.DataFrame(df['stagetimes'].tolist(), index= df.index)
 #df_stages.columns = cols
+df_stages.columns = range(1,df_stages.shape[1]+1)
 df_stages.head()
 ```
 
@@ -408,7 +455,9 @@ wo = __import__("WRC Overall")
 
 ```python
 #These are in wo as well - should move to dakar utils
-def _gapToLeaderBar(Xtmpq, typ, stages=None, milliseconds=True):
+
+#This has been changed from wo so as not to change polarity of the times
+def _gapToLeaderBar(Xtmpq, typ, stages=None, milliseconds=True, flip=True):
     if milliseconds:
         Xtmpq = Xtmpq/1000
     if typ=='stage':
@@ -417,7 +466,8 @@ def _gapToLeaderBar(Xtmpq, typ, stages=None, milliseconds=True):
         Xtmpq.columns = ['SS_{}_{}'.format(c, typ) for c in Xtmpq.columns]
     k = '{}GapToLeader'.format(typ)
     Xtmpq[k] = Xtmpq[[c for c in Xtmpq.columns ]].values.tolist()
-    Xtmpq[k] = Xtmpq[k].apply(lambda x: [-y for y in x])
+    flip = -1 if flip else 1
+    Xtmpq[k] = Xtmpq[k].apply(lambda x: [flip * y for y in x])
     Xtmpq[k] = Xtmpq[k].apply(sparkline2, typ='bar', dot=True)
     return Xtmpq 
 
@@ -448,23 +498,20 @@ def _rebaseTimes(times, bib=None, basetimes=None):
     return times
 ```
 
-```python
-leaderTimes
-```
-
 There are five cross-stage reports we can add in:
-    - `overallPosition`: step line chart showing evolution of overall position
-    - `overallGapToLeader`: bar chart showing overall gap to leader
-    - `Gap`: bar chart showing gap relative to rebased entry
-    - `stagePosition`: step chart showing stage positions
-    - `stageWinnerGap`: bar chart showing gap to stage winner
+
+- `overallPosition`: step line chart showing evolution of overall position
+- `overallGapToLeader`: bar chart showing overall gap to leader
+- `stagePosition`: step chart showing stage positions
+- `stageWinnerGap`: bar chart showing gap to stage winner
+- `Gap`: bar chart showing gap relative to rebased entry
 
 ```python
 #Need to refactor the times in the tables to gaps
 
-#The overall times need rebasing to the overall leader at the end of the stage, that is, pos==1 on df
-leaderTimes = df_overall.min()
-df_overall[xcols] = -df_overall[xcols].apply(_rebaseTimes, basetimes=leaderTimes, axis=1)
+#The overall times need rebasing to the overall leader
+leaderTimes = df_overall.iloc[0]
+df_overall[xcols] = df_overall[xcols].apply(_rebaseTimes, basetimes=leaderTimes, axis=1)
 
 df_overall.head()
 ```
@@ -476,6 +523,7 @@ df_stages.head()
 ```python
 #We need to finesse the stage positions from the stage times... or get them from elsewhere
 df_stages_pos = df_stages.rank(method='min')
+df_stages_pos.columns = range(1,df_stages_pos.shape[1]+1)
 df_stages_pos.head()
 ```
 
@@ -486,17 +534,18 @@ df_stages_pos.head()
 ```
 
 ```python
-#The stage times need rebasing to the stage winner, which we need to get elsewhere or generate
-#Gap to stage winner
-stagewinnertimes = df_stages.min()
+#The stage times need rebasing to the overall leader
+#Gap to overall leader
+leaderStagetimes = df_stages.iloc[0]
 
-df_stages[ccols] = df_stages[xcols].apply(_rebaseTimes, basetimes=stagewinnertimes, axis=1)
+df_stages[xcols] = df_stages[xcols].apply(_rebaseTimes, basetimes=leaderStagetimes, axis=1)
 
 df_stages.head()
 ```
 
 ```python
-rebase = '/entryinfo/46492-corbeau-seats-rally-tendring-clacton-2018/1719852/'
+df_stages_winner = df_stages[xcols].apply(_rebaseTimes, basetimes=df_stages.min(), axis=1)
+df_stages_winner.head()
 ```
 
 ```python
@@ -504,13 +553,20 @@ from IPython.display import HTML
 ```
 
 ```python
+#Use a codes list to control display df
+#Limit for testing...
+codes = pd.DataFrame(df_stages.index.tolist()).rename(columns={0:'entryId'}).set_index('entryId').head()
+codes
+```
+
+```python
+tmp = pd.merge(codes, df_rally_overall[['Class']], left_index=True, right_index=True)
+```
+
+```python
 #overallGapToLeader: bar chart showing overall gap to leader
 
-
-#wrc = pd.merge(codes, positionStep(sr.dbGetStageRank(conn, rally, rc, 'overall', stages), 'overall', stages)[['overallPosition']], left_index=True, right_index=True)
-
-#test with a limit
-tmp = _gapToLeaderBar(-df_overall[xcols], 'overall', stages, False)[:10]#[['overallPosition']]
+tmp = pd.merge(tmp,_gapToLeaderBar(-df_overall[xcols], 'overall', stages, False, False), left_index=True, right_index=True)
 s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
 
 #Introduce a dot marker to highlight winner
@@ -521,39 +577,184 @@ display(HTML(s2))
 ```python
 #overallPosition: step line chart showing evolution of overall position
 
-#wrc = pd.merge(codes, positionStep(sr.dbGetStageRank(conn, rally, rc, 'overall', stages), 'overall', stages)[['overallPosition']], left_index=True, right_index=True)
-
-#This is WRONG atm - what col is is on?
-
 #We need to pass a position table in
 xx=_positionStep(df_overall_pos[xcols], 'overall', stages)[['overallPosition']]
-
 tmp = pd.merge(tmp, xx, left_index=True, right_index=True)
-s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
 
-#Introduce a dot marker to highlight winner
+s2 = moreStyleDriverSplitReportBaseDataframe(tmp[['overallPosition']],'')
 display(HTML(s2))
-
-```
-
-```python
-cols = [c for c in tmp.columns if c.startswith('SS')]
-s2 = moreStyleDriverSplitReportBaseDataframe(-tmp[cols].apply(_rebaseTimes, bib=rebase, axis=0),'')
-
-#Introduce a dot marker to highlight winner
-display(HTML(s2))
-```
-
-```python
-# Gap: bar chart showing gap relative to rebased entry
-
-```
-
-```python
-# stagePosition: step chart showing stage positions
 
 ```
 
 ```python
 # stageWinnerGap: bar chart showing gap to stage winner
+#The gapToLeaderBar needs to return the gap to the stage winner
+tmp = pd.merge(tmp,_gapToLeaderBar(-df_stages_winner[xcols], 'stages', stages, False,False), left_index=True, right_index=True)
+#In the preview the SS_N_stages bars are wrong because we have not rebased yet
+tmp.rename(columns={'stagesGapToLeader':'stageWinnerGap'},inplace=True)
+
+s2 = moreStyleDriverSplitReportBaseDataframe(tmp[['stageWinnerGap']],'')
+display(HTML(s2))
+```
+
+```python
+# stagePosition: step chart showing stage positions
+xx=_positionStep(df_stages_pos[xcols], 'stages', stages)['stagesPosition']
+tmp = pd.merge(tmp, xx, left_index=True, right_index=True)
+
+s2 = moreStyleDriverSplitReportBaseDataframe(tmp[['stagesPosition']],'')
+display(HTML(s2))
+```
+
+```python
+#Need final pos column
+
+#Where are penalties handled
+```
+
+```python
+#We always need to rebase to ensure that timing cols are correct
+rebase = '/entryinfo/46492-corbeau-seats-rally-tendring-clacton-2018/1719852/'
+rebase = '/entryinfo/46492-corbeau-seats-rally-tendring-clacton-2018/1719874/'
+```
+
+```python
+#rebase
+cols = [c for c in tmp.columns if c.startswith('SS')]
+tmp[cols] = tmp[cols].apply(_rebaseTimes, bib=rebase, axis=0)
+
+s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
+display(HTML(s2))
+```
+
+```python
+# Gap: bar chart showing gap relative to rebased entry
+# This is just taken from the overall in the table
+tmp = wo.gapBar(tmp)
+
+s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
+display(HTML(s2))
+```
+
+```python
+moveColumn(tmp, 'stageWinnerGap', right_of='overallPosition')
+moveColumn(tmp, 'stagesPosition', right_of='overallPosition')
+moveColumn(tmp, 'Gap', right_of='overallPosition')
+
+moveColumn(tmp, 'overallPosition', pos=0)
+moveColumn(tmp, 'overallGapToLeader', right_of='overallPosition')
+s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
+display(HTML(s2))
+```
+
+```python
+tmp = pd.merge(tmp, df_rally_overall[['Pos']], left_index=True, right_index=True)
+moveColumn(tmp, 'Pos', right_of='overallGapToLeader')
+moveColumn(tmp, 'Class', pos=0)
+
+s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
+display(HTML(s2))
+```
+
+```python
+tmp = pd.merge(tmp, df_rally_overall[['Class Rank']], left_index=True, right_index=True)
+moveColumn(tmp, 'Class Rank', right_of='Class')
+
+s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
+display(HTML(s2))
+```
+
+```python
+#Reporter
+
+def rally_report(codes, rebase):
+    
+    tmp = pd.merge(codes, df_rally_overall[['Class']], left_index=True, right_index=True)
+    
+    #If we want the charts relative to overall,
+    # we need to assemble them at least on cars ranked above lowest ranked car in codes
+    
+    #But we could optimise by getting rid of lower ranked cars
+    
+    #Also perhaps provide an option to generate charts just relative to cars identified in codes?
+    
+    #overallGapToLeader: bar chart showing overall gap to leader
+    tmp = pd.merge(tmp,_gapToLeaderBar(-df_overall[xcols], 'overall', stages, False, False), left_index=True, right_index=True)
+
+    #overallPosition: step line chart showing evolution of overall position
+
+    #We need to pass a position table in
+    xx=_positionStep(df_overall_pos[xcols], 'overall', stages)[['overallPosition']]
+    tmp = pd.merge(tmp, xx, left_index=True, right_index=True)
+
+    
+    # stageWinnerGap: bar chart showing gap to stage winner
+    #The gapToLeaderBar needs to return the gap to the stage winner
+    tmp = pd.merge(tmp,_gapToLeaderBar(-df_stages_winner[xcols], 'stages', stages, False,False), left_index=True, right_index=True)
+    #In the preview the SS_N_stages bars are wrong because we have not rebased yet
+    tmp.rename(columns={'stagesGapToLeader':'stageWinnerGap'},inplace=True)
+
+    # stagePosition: step chart showing stage positions
+    xx=_positionStep(df_stages_pos[xcols], 'stages', stages)['stagesPosition']
+    tmp = pd.merge(tmp, xx, left_index=True, right_index=True)
+
+    #Rebase
+    cols = [c for c in tmp.columns if c.startswith('SS')]
+    tmp[cols] = tmp[cols].apply(_rebaseTimes, bib=rebase, axis=0)
+
+    # Gap: bar chart showing gap relative to rebased entry
+    # This is just taken from the overall in the table
+    tmp = wo.gapBar(tmp)
+
+    
+    
+    moveColumn(tmp, 'stageWinnerGap', right_of='overallPosition')
+    moveColumn(tmp, 'stagesPosition', right_of='overallPosition')
+    moveColumn(tmp, 'Gap', right_of='overallPosition')
+
+    moveColumn(tmp, 'overallPosition', pos=0)
+    moveColumn(tmp, 'overallGapToLeader', right_of='overallPosition')
+    
+    tmp = pd.merge(tmp, df_rally_overall[['Pos']], left_index=True, right_index=True)
+    moveColumn(tmp, 'Pos', right_of='overallGapToLeader')
+    moveColumn(tmp, 'Class', pos=0)
+
+    tmp = pd.merge(tmp, df_rally_overall[['CarNum','Class Rank']], left_index=True, right_index=True)
+    moveColumn(tmp, 'Class Rank', right_of='Class')
+    moveColumn(tmp, 'CarNum', pos=0)
+    
+    s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
+
+    return s2
+    
+
+```
+
+```python
+codes = pd.DataFrame(df_rally_overall[df_rally_overall['Class']=='C'].index.tolist()).rename(columns={0:'entryId'}).set_index('entryId').head()
+codes
+
+```
+
+```python
+wREBASE=codes.iloc[2].name
+wREBASE
+```
+
+```python
+s2 = rally_report(codes, wREBASE)
+display(HTML(s2))
+```
+
+```python
+dakar.getTablePNG(s2, fnstub='overall_{}_'.format(wREBASE.replace('/','_')),scale_factor=2)
+```
+
+```python
+from IPython.display import Image
+Image(_)
+```
+
+```python
+
 ```

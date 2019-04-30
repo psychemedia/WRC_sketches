@@ -244,9 +244,9 @@ def moreStyleDriverSplitReportBaseDataframe(rb2, ss, caption=None):
     # This may help us to help identify any obvious road position effect when sorting stage times by stage rank
     cm=sns.light_palette((210, 90, 60), input="husl",as_cmap=True)
     s2=(rb2.style
-        .background_gradient(cmap=cm, subset=_subsetter(rb2.columns, ['Road Position', 'Pos','Overall Position', 'Previous Overall Position']))
+        .background_gradient(cmap=cm, subset=_subsetter(rb2.columns, ['Road Position', 'Pos','Overall Position', 'Previous Overall Position', 'Class Rank']))
         .applymap(color_negative,
-                  subset=[c for c in rb2.columns if rb2[c].dtype==float and (not c.startswith('D') and c not in ['Overall Position','Overall Gap','Road Position', 'Pos'])])
+                  subset=[c for c in rb2.columns if rb2[c].dtype==float and (not c.startswith('D') and c not in ['Overall Position','Overall Gap','Road Position', 'Pos', 'Class Rank'])])
         .highlight_min(subset=_subsetter(rb2.columns, ['Overall Position','Previous Overall Position']), color='lightgrey')
         .highlight_max(subset=_subsetter(rb2.columns, ['Overall Time', 'Overall Gap']), color='lightgrey')
         .highlight_max(subset=_subsetter(rb2.columns, ['Previous']), color='lightgrey')
