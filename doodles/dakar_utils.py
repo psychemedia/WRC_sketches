@@ -12,6 +12,35 @@
 #     name: python3
 # ---
 
+# ## Time handling Utilities
+
+#Preferred time format
+def formatTime(t):
+    return float("%.3f" % t)
+
+# Accept times in the form of hh:mm:ss.ss or mm:ss.ss
+# Return the equivalent number of seconds and milliseconds
+def getTime(ts, ms=False):
+    ts=str(ts)
+    t=ts.strip()
+    if t=='': return pd.to_datetime('')
+    if ts=='P': return None
+    if 'LAP'.lower() in ts.lower():
+        ts=str(1000*int(ts.split(' ')[0]))
+    t=ts.split(':')
+    if len(t)==3:
+        tm=60*int(t[0])+60*int(t[1])+float(t[2])
+    elif len(t)==2:
+        tm=60*int(t[0])+float(t[1])
+    else:
+        tm=float(pd.to_numeric(t[0], errors='coerce'))
+    if ms:
+        #We can't cast a NaN as an int
+        return float(1000*formatTime(tm))
+    return float(formatTime(tm))
+
+# ## Plot Related
+
 import matplotlib.pyplot as plt
 
 def _get_col_loc(df, col=None, pos=None, left_of=None, right_of=None):
