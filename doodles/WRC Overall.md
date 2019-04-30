@@ -21,9 +21,8 @@ if __name__=='__main__':
     %load_ext autoreload
     %autoreload 2
     
-    import notebookimport
-    
-    sr = __import__("Charts - Stage Results")
+import notebookimport
+sr = __import__("Charts - Stage Results")
 
 ```
 
@@ -40,13 +39,15 @@ from IPython.display import HTML
 import dakar_utils as dakar
 from dakar_utils import moveColumn, sparkline2, sparklineStep, moreStyleDriverSplitReportBaseDataframe
 
+import sqlite3
 ```
 
 ```python
-dbname2='sweden19.db'
-conn2 = sqlite3.connect(dbname2)
+if __name__=='__main__':
+    dbname2='argentina19.db'
+    conn2 = sqlite3.connect(dbname2)
 
-c2 = conn2.cursor()
+    c2 = conn2.cursor()
 
 ```
 
@@ -55,13 +56,26 @@ from IPython.display import HTML
 ```
 
 ```python
+if __name__=='__main__':
+    #We can't use codes becuase they are not unique
+    #We need to use entryId
+    q= 'SELECT entryId, `driver.code` AS Code FROM startlists'
+    codes = pd.read_sql(q,conn2).set_index('entryId')
+    codes.head()
+```
+
+```python
 def _rebaseTimes(times, bib=None):
+    ''' Rebase times relative to specified driver. '''
+    #SHould we rebase against entryId, so need to lool that up. In which case, leave index as entryId
     if bib is None: return times
+    #bibid = codes[codes['Code']==bib].index.tolist()[0]
     return times - times.loc[bib]
 ```
 
 ```python
-REBASER=306
+if __name__=='__main__':
+    REBASER=306
 ```
 
 ```python
@@ -69,18 +83,15 @@ REBASER=306
 ```
 
 ```python
-q= 'SELECT entryId, `driver.code` AS Code FROM startlists'
-codes = pd.read_sql(q,conn2).set_index('entryId')
-codes.head()
-```
-
-```python
-#For WRC
+#Should set this from current year?
+#YEAR is used in a function def - reset that to None and handle?
 YEAR=2019
-rc='RC1'
-rally='Sweden'
-typ='overall'
-wREBASE='TÄN'
+if __name__=='__main__':
+    #For WRC
+    rc='RC1'
+    rally='Argentina'
+    typ='overall'
+    wREBASE='OGI'
 ```
 
 ### Day Based Reporting
@@ -136,14 +147,39 @@ def getStagesByDay(daynums=None, sections=None):
     
     return tmp
 
-getStagesByDay(sections=2)
 ```
 
 ```python
-def gapToLeaderBar(conn, rally, rc, typ, stages=None):
+if __name__=='__main__':
+    getStagesByDay(daynums=3)
+```
+
+```python
+def _gapToLeaderBar(Xtmpq, typ, stages=None, milliseconds=True):
+    if milliseconds:
+        Xtmpq = Xtmpq/1000
+    if typ=='stage':
+        Xtmpq.columns = ['SS_{}'.format(c) for c in Xtmpq.columns]
+    else:
+        Xtmpq.columns = ['SS_{}_{}'.format(c, typ) for c in Xtmpq.columns]
+    k = '{}GapToLeader'.format(typ)
+    Xtmpq[k] = Xtmpq[[c for c in Xtmpq.columns ]].values.tolist()
+    Xtmpq[k] = Xtmpq[k].apply(lambda x: [-y for y in x])
+    Xtmpq[k] = Xtmpq[k].apply(sparkline2, typ='bar', dot=True)
+    return Xtmpq 
+
+def gapToLeaderBar2(Xtmpq, typ, stages=None, milliseconds=True):
+    Xtmpq = Xtmpq[['entryId','snum', 'diffFirstMs']].pivot(index='entryId',columns='snum',values='diffFirstMs')
+    return _gapToLeaderBar(Xtmpq, typ, stages, milliseconds)
+```
+
+```python
+#Need to deprecate this...
+def gapToLeaderBar(conn, rally, rc, typ, stages=None, milliseconds=True):
     Xtmpq = sr.dbGetStageRank(conn, rally, rc, typ, stages)#.head()
     Xtmpq = Xtmpq[['entryId','snum', 'diffFirstMs']].pivot(index='entryId',columns='snum',values='diffFirstMs')
-    Xtmpq = Xtmpq/1000
+    if milliseconds:
+        Xtmpq = Xtmpq/1000
     if typ=='stage':
         Xtmpq.columns = ['SS_{}'.format(c) for c in Xtmpq.columns]
     else:
@@ -164,15 +200,30 @@ def gapBar(df):
 ```
 
 ```python
-def positionStep(conn, rally, rc, typ, stages=None):
-    Xtmpq = sr.dbGetStageRank(conn, rally, rc, typ, stages)#.head()
-    Xtmpq = Xtmpq[['entryId','snum', 'position']].pivot(index='entryId',columns='snum',values='position')
+if __name__=='__main__':
+    display(sr.dbGetStageRank(conn2, rally, rc, typ, None).head())
+    print(sr.dbGetStageRank(conn2, rally, rc, typ, None).columns)
+```
+
+```python
+if __name__=='__main__':
+    display(sr.dbGetStageRank(conn2, rally, rc, typ, None)[['entryId','snum', 'position']].pivot(index='entryId',columns='snum',values='position'))
+```
+
+```python
+#def positionStep(conn, rally, rc, typ, stages=None):
+def _positionStep(Xtmpq, typ, stages=None):
     Xtmpq.columns = ['SS_{}_{}_pos'.format(c, typ) for c in Xtmpq.columns]
     k = '{}Position'.format(typ)
     Xtmpq[k] = Xtmpq[[c for c in Xtmpq.columns ]].values.tolist()
     Xtmpq[k] = Xtmpq[k].apply(lambda x: [-y for y in x])
     Xtmpq[k] = Xtmpq[k].apply(sparklineStep)
     return Xtmpq 
+
+def positionStep(Xtmpq, typ, stages=None):
+    #Xtmpq = sr.dbGetStageRank(conn, rally, rc, typ, stages)#.head()
+    Xtmpq = Xtmpq[['entryId','snum', 'position']].pivot(index='entryId',columns='snum',values='position')
+    return  _positionStep(Xtmpq, typ, stages)
 
 # TO DO - this is really clunky; need a better way
 def overallAtLastStage(conn, rally, rc, typ, stages=None):
@@ -191,28 +242,48 @@ def generateOverallResultsChartable(conn, rally, rc, rebase=None, stages=None, d
     
     if sections:
         stages = listify(stages) + getStagesByDay(sections=sections)['code'].tolist()
-        
-    wrc = pd.merge(codes, positionStep(conn, rally, rc, 'overall', stages=stages)[['overallPosition']], left_index=True, right_index=True)
     
-    wrc = pd.merge(wrc, gapToLeaderBar(conn, rally, rc, 'overall', stages), left_index=True, right_index=True)
+    #Using the codes list as a base, add in the position step chart showing overall position evolution
+    #Note that there may be duplicate codes
+    #wrc = pd.merge(codes, positionStep(conn, rally, rc, 'overall', stages=stages)[['overallPosition']], left_index=True, right_index=True)
+    _stages_overall = sr.dbGetStageRank(conn, rally, rc, 'overall', stages)
+    wrc = pd.merge(codes, positionStep(_stages_overall, 'overall', stages)[['overallPosition']], left_index=True, right_index=True)
+    
+    #Add in bar chart showing gap to leader at each stage
+    #wrc = pd.merge(wrc, gapToLeaderBar(conn, rally, rc, 'overall', stages), left_index=True, right_index=True)
+    wrc = pd.merge(wrc, gapToLeaderBar2(_stages_overall, 'overall', stages), left_index=True, right_index=True)
+    
     moveColumn(wrc, 'overallGapToLeader', right_of='overallPosition')
     
     
     wrc['Pos'] = overallAtLastStage(conn, rally, rc, typ, stages)
     moveColumn(wrc, 'Pos', right_of='overallGapToLeader')
-    
-    wrc = pd.merge(wrc, positionStep(conn, rally, rc, 'stage', stages)[['stagePosition']], left_index=True, right_index=True)
-    
-    wrc = pd.merge(wrc, gapToLeaderBar(conn, rally, rc, 'stage', stages), left_index=True, right_index=True)
+    #By this point it seems we may have introduced a duplicate? But how?
+    #The following sometimes breaks?
+    #wrc = pd.merge(wrc, positionStep(conn, rally, rc, 'stage', stages)[['stagePosition']], left_index=True, right_index=True)
+    _stages_stage = sr.dbGetStageRank(conn, rally, rc, 'stage', stages)
+    wrc = pd.merge(wrc, positionStep(_stages_stage, 'stage', stages)[['stagePosition']], left_index=True, right_index=True)
+
+    #wrc = pd.merge(wrc, gapToLeaderBar(conn, rally, rc, 'stage', stages), left_index=True, right_index=True)
+    wrc = pd.merge(wrc, gapToLeaderBar2(_stages_stage, 'stage', stages), left_index=True, right_index=True)
     wrc.rename(columns={'stageGapToLeader':'stageWinnerGap'},inplace=True)
     moveColumn(wrc, 'stageWinnerGap', right_of='stagePosition')
 
 
     wrc = wrc.sort_values('Pos', ascending=True)
-    wrc=wrc.set_index('Code',drop=True)
+    
+    #At this point the index is the entryId
+    #We can't really set the index on Code because there may be duplicate code values
+    wrc=wrc.set_index('Code', drop=True)
+    
+    #Some tidying up if we have stages in the db but no results...
+    wrc=wrc.dropna(how='all', axis='columns')
+    
     cols = [c for c in wrc.columns if c.startswith('SS')]
       
     if rebase is not None:
+        #This will break if we provide one of the duplicate Code values...
+        #If not, we should be okay...
         wrc[cols] = -wrc[cols].apply(_rebaseTimes, bib=rebase, axis=0)
     
     #This needs to be done after rebasing
@@ -221,39 +292,58 @@ def generateOverallResultsChartable(conn, rally, rc, rebase=None, stages=None, d
     
     return wrc
 
-tmp = generateOverallResultsChartable(conn2, rally, rc, rebase=wREBASE, days=1, sections=3)
-tmp                
-    
+   
 ```
 
 ```python
-wREBASE='NEU'
-tmp = generateOverallResultsChartable(conn2, rally, rc, rebase=wREBASE)
+if __name__=='__main__':
+    tmp = generateOverallResultsChartable(conn2, rally, rc, rebase=wREBASE, days=1, sections=3)
+    tmp                
+ 
+```
+
+```python
+if __name__=='__main__':
+    wREBASE='MEE'
+    tmp = generateOverallResultsChartable(conn2, rally, rc, rebase=wREBASE, stages=None)#[9])
+    tmp = generateOverallResultsChartable(conn2, rally, rc, rebase=wREBASE, days=4)#[9])
 
 ```
 
 ```python
-s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
+if __name__=='__main__':
+    s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
 
-#Introduce a dot marker to highlight winner
-display(HTML(s2))
-dakar.getTablePNG(s2, fnstub='overall_{}_'.format(wREBASE),scale_factor=2)
+    #Introduce a dot marker to highlight winner
+    display(HTML(s2))
+    dakar.getTablePNG(s2, fnstub='overall_{}_'.format(wREBASE),scale_factor=2)
 
 ```
 
+
+```python
+if __name__=='__main__':
+    !ls
+```
 
 ## Ultimate Margins
 
 ...aka *time left on table*...
 
 
-${}_{N}\Delta_i = \sum_{s=1}^N \Delta_{i,s}$ where $\Delta_{i,s}=t_{i,w}-t_{w,s}$ and $t_{i,s}$ is the time on stage $s$ for driver $i$ and $t_{w,s}$ is time on stage $s$ for the stage winner, $w$. We then plot $y={}_{N}\Delta_i$ against $x=s:1..N$ for driver $i$.
+Total time lost for driver $i$ over first $N$ stages is ${}_{N}\Delta_i = \sum_{s=1}^N \Delta_{i,s}$ where $\Delta_{i,s}=t_{i,w}-t_{w,s}$ and $t_{i,s}$ is the time on stage $s$ for driver $i$ and $t_{w,s}$ is time on stage $s$ for the stage winner, $w$. We then plot $y={}_{N}\Delta_i$ against $x=s:1..N$ for driver $i$.
 
-We can also look at turning that into a percentage, *cf.* Formula One 1075 times.
+For an even more exacting metric, we might also look at the deltas for time taken between each split.
+
+We can also look at turning that into a percentage, *cf.* Formula One 107% times.
 
 For example:${}_N\nabla_{i} = \frac{\sum_{s=1}^N t_{s,i}}{\sum_{s=1}^N t_{s,w}}$ and again plot $y={}_{N}\nabla_i$ against $x=s:1..N$ for driver $i$.
 
-Note that this gives meaning to "giving 110%" in a roundabout sort of way. A driver might be running ar 105% winner time in early stages, then improve to bring this down to 103%..
+Note that this gives meaning to "giving 110%" in a roundabout sort of way. A driver might be running at 105% winner time in early stages, then improve to bring this down to 103%..
+
+105 -> 103 means you give E.105 = 103: E = 103/105. To make that 100, (103/105) * (1/E) * 100 = 100. So "gave 110%" is (100 * oldPerCent/newPercent)
+
+Alternatively... overall leader does time 110, driver does 105. So driver does P * 105 = 110, P = 110 /105 = overall / driver ? I prefer old/new formualtion -  relative to driver? If he gave it 100%, his 105% behind at start of stage would be 105% behind at end of stage?
 
 
 We can also look to adding lower margins to table, e.g. searching for `max(positive delta)` to find the amount of time lost to the leader on each stage.
@@ -261,23 +351,36 @@ We can also look to adding lower margins to table, e.g. searching for `max(posit
 
 Leader rebasing: also consider dynamic / leader rebasing; eg rebaser kernel is `{'SS1':'LOE','SS2':'NEU', etc...}` then get times for each of those to rebase against.
 
+
+We need smoething along the lines of:
+
+# ```
+#ultimate times to rebase against
+for each stage:
+    for each sector:
+        get min(sector_time) where sector_time>0
+
+# ```
+
+We can then rebase each driver's splits against these times.
+
+For a cruder metric based just on the stage time, we can simply find the faset stage time in each stage to rebase against.
+
 ```python
 
 ```
 
 ```python
-
+if __name__=='__main__':
+    #Need a WRC query for this
+    data
+    #cols SS, Overall position, Stage position, with a driver index
 ```
 
 ```python
-#Need a WRC query for this
-data
-#cols SS, Overall position, Stage position, with a driver index
-```
-
-```python
-wrc.plot(x='SS_1_overall',drawstyle="steps-mid",linestyle=':')
-plt.gca().invert_yaxis()
+if __name__=='__main__':
+    wrc.plot(x='SS_1_overall',drawstyle="steps-mid",linestyle=':')
+    plt.gca().invert_yaxis()
 ```
 
 ```python
