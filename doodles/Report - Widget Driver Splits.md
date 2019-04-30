@@ -127,6 +127,23 @@ interact(stage_chart2, rc=classes2, driver=drivers2,
         waypointRank=waypointRank);
 ```
 
+## HTML Table to PNG
+
+There is a jquery plugin for this - could we use this in the widget app to download the table as png?
+
+- https://stackoverflow.com/questions/38425931/download-table-as-png-using-jquery/40644383#40644383
+- https://tableexport.v5.travismclarke.com/#tableexport
+- https://html2canvas.hertzen.com/ / https://github.com/niklasvh/html2canvas
+- https://w3lessons.info/export-html-table-to-excel-csv-json-pdf-png-using-jquery/ export to pdf
+- https://github.com/simonbengtsson/jsPDF-AutoTable
+
+
+Maybe use this — https://github.com/CermakM/jupyter-require — to load in the js?
+
+```python
+
+```
+
 ```python
 
 ```
