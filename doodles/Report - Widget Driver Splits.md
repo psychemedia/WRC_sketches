@@ -35,8 +35,7 @@ q_drivers='SELECT `driver.code` AS code  FROM startlists st JOIN startlist_class
 
 q_classes='SELECT DISTINCT(name) AS name FROM startlists st JOIN startlist_classes sc ON sc.entryid = st.entryid'
 
-#Need to look this up properly
-q_stages= ['SS{}'.format(i) for i in range(1,17) ]
+q_stages= 'SELECT * FROM itinerary_stages WHERE status!="ToRun" ORDER BY Number'
 ```
 
 ```python
