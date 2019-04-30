@@ -40,7 +40,7 @@ q_stages= 'SELECT * FROM itinerary_stages WHERE status!="ToRun" ORDER BY Number'
 
 ```python
 def stage_chart(rc,driver, stage):
-    s2 = ds.getDriverSplitsReport(conn, rally, stage, driver, rc)
+    s2 = ds.getDriverSplitsReport(conn, rally, stage, driver, rc, order='overall')
     display(HTML(s2))
 ```
 
