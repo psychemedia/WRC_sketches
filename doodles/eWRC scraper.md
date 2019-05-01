@@ -24,10 +24,12 @@ Simple js API that filters on WRC...: https://github.com/nathanjliu/WRC-API
 
 ```python
 import pandas as pd
+import re
+from dakar_utils import getTime
 ```
 
 ```python
-url= 'https://www.ewrc-results.com/final/46492-corbeau-seats-rally-tendring-clacton-2018/'
+url= 'https://www.ewrc-results.com/final/54762-corbeau-seats-rally-tendring-clacton-2019/'
 ```
 
 ![](images/eWRC-final_results.png)
@@ -64,7 +66,7 @@ df_rally_overall.head()
 ```
 
 ```python
-df_rally_overall.columns=['Pos','CarNum','driverNav','Model','Class', 'Time','GapDiff', 'Speedkm', 'badge']
+df_rally_overall.columns=['Pos','CarNum','driverNav','ModelReg','Class', 'Time','GapDiff', 'Speedkm', 'badge']
 ```
 
 ```python
@@ -76,15 +78,25 @@ df_rally_overall.head()
 ```
 
 ```python
+df_rally_overall[['Driver','CoDriver']] = df_rally_overall['driverNav'].str.extract(r'(?P<Driver>.*)\s+-\s+(?P<CoDriver>.*)')
+df_rally_overall.head()
+```
+
+```python
 df_rally_overall['Historic']= df_rally_overall['Class'].str.contains('Historic')
 df_rally_overall['Class']= df_rally_overall['Class'].str.replace('Historic','')
 df_rally_overall['Class'].unique()
 ```
 
 ```python
-df_rally_overall["Class Rank"] = df_rally_overall.groupby("Class")["Pos"].rank(method='min')
-df_rally_overall.head()
+df_rally_overall['Pos'] = df_rally_overall['Pos'].str.extract(r'(.*)\.')
+df_rally_overall['Pos'] = df_rally_overall['Pos'].astype(int)
+df_rally_overall.dtypes
+```
 
+```python
+df_rally_overall[['Model','Registration']]=df_rally_overall['ModelReg'].str.extract(r'(?P<Model>.*) \((?P<Registration>.*)\)')
+df_rally_overall.head()
 ```
 
 ```python
@@ -92,7 +104,25 @@ df_rally_overall.tail()
 ```
 
 ```python
+df_rally_overall["Class Rank"] = df_rally_overall.groupby("Class")["Pos"].rank(method='min')
 
+df_rally_overall.head()
+```
+
+```python
+df_rally_overall.tail()
+```
+
+```python
+#Car registration not a reliable match
+_entries = pd.read_csv('corbeau19_entries_archive.csv')
+_entries['Driver Reverse'] = _entries['Driver'].str.replace(r'(.+)\s+([^\s]+)$', r'\2 \1')
+_entries.head()
+```
+
+```python
+#All the driver names are in the _entries but with minto string match differences
+set(df_rally_overall['Driver'])-set(_entries['Driver Reverse'])
 ```
 
 ```python
@@ -107,7 +137,7 @@ The stage results pages returns two tables side by side (the stage result and th
 
 ```python
 #Stage results
-url='https://www.ewrc-results.com/results/46492-corbeau-seats-rally-tendring-clacton-2018/'
+url='https://www.ewrc-results.com/results/54762-corbeau-seats-rally-tendring-clacton-2019/'
 ```
 
 First, let's get the list of stages:
@@ -174,9 +204,12 @@ Some of the columns contain multiple items. We need to convert these to separate
 ```python
 #https://stackoverflow.com/a/39358924/454773
 #Extract out gap to leader and difference to car ahead
-#First, add dummy values to the first (NA) row, then hack a stragety for splitting
-df['GapDiff'].fillna('+0+0').str.strip('+').str.split('+',expand=True).rename(columns={0:'Gap', 1:'Diff'}).astype(float).head()
+#First, add dummy values to the first (NA) row, then hack a strategy for splitting
 
+#TO DO - need to convert from time string...
+df['GapDiff'].fillna('+0+0').str.strip('+').str.split('+',expand=True).rename(columns={0:'Gap', 1:'Diff'}).head()
+
+#TODO - timify these cols
 ```
 
 ```python
@@ -190,7 +223,8 @@ def diffgapsplitter(col):
     #Rename columns
     col = col.rename(columns={0:'Gap', 1:'Diff'})
     #Convert to numerics
-    col = col.astype(float)
+    col['Gap'] = col['Gap'].apply(getTime)#.astype(float)
+    col['Diff'] = col['Diff'].apply(getTime)
     return col
 
 ```
@@ -238,12 +272,16 @@ df[['driver','entryId','model','navigator']] = pd.DataFrame(rows)
 df.head()
 ```
 
+```python
+print(df['CarNum'].tolist())
+```
+
 ## All in One - Stage Times
 
 The stage Times pags is a single page for pretty much all the timing data we need...
 
 ```python
-url='https://www.ewrc-results.com/times/46492-corbeau-seats-rally-tendring-clacton-2018/'
+url='https://www.ewrc-results.com/times/54762-corbeau-seats-rally-tendring-clacton-2019/'
 soup = soupify(url)
 ```
 
@@ -278,9 +316,6 @@ driver,navigator
 ```
 
 ```python
-import re
-
-
 #Extract the car number
 carNumMatch = lambda txt: re.search('#(?P<carNum>[\d]*)', cleanString(txt))
 carNum = carNumMatch(groups[_pos][NAME_SUBGROUP]).group('carNum')
@@ -427,7 +462,6 @@ df_stages.head()
 ```
 
 ```python
-from dakar_utils import getTime
 xcols = df_overall.columns
 
 for ss in xcols:
@@ -455,6 +489,11 @@ wo = __import__("WRC Overall")
 
 ```python
 #These are in wo as well - should move to dakar utils
+
+
+#TO DO - the chart should be separated out from the cols generator
+# The chart function should return only the chart
+
 
 #This has been changed from wo so as not to change polarity of the times
 def _gapToLeaderBar(Xtmpq, typ, stages=None, milliseconds=True, flip=True):
@@ -507,10 +546,14 @@ There are five cross-stage reports we can add in:
 - `Gap`: bar chart showing gap relative to rebased entry
 
 ```python
+df_overall.head()
+```
+
+```python
 #Need to refactor the times in the tables to gaps
 
-#The overall times need rebasing to the overall leader
-leaderTimes = df_overall.iloc[0]
+#The overall times need rebasing to the overall leader at each stage
+leaderTimes = df_overall.min()#iloc[0]
 df_overall[xcols] = df_overall[xcols].apply(_rebaseTimes, basetimes=leaderTimes, axis=1)
 
 df_overall.head()
@@ -614,8 +657,7 @@ display(HTML(s2))
 
 ```python
 #We always need to rebase to ensure that timing cols are correct
-rebase = '/entryinfo/46492-corbeau-seats-rally-tendring-clacton-2018/1719852/'
-rebase = '/entryinfo/46492-corbeau-seats-rally-tendring-clacton-2018/1719874/'
+rebase = '/entryinfo/54762-corbeau-seats-rally-tendring-clacton-2019/2162347/'
 ```
 
 ```python
@@ -665,6 +707,11 @@ display(HTML(s2))
 ```
 
 ```python
+len(df_rally_overall[:85]), df_overall.index.get_loc( '/entryinfo/54762-corbeau-seats-rally-tendring-clacton-2019/2227145/' )
+#'/entryinfo/54762-corbeau-seats-rally-tendring-clacton-2019/2227145/'
+```
+
+```python
 #Reporter
 
 def rally_report(codes, rebase):
@@ -675,16 +722,22 @@ def rally_report(codes, rebase):
     # we need to assemble them at least on cars ranked above lowest ranked car in codes
     
     #But we could optimise by getting rid of lower ranked cars
+    #eg we can get the row index for a given index value as:
+    #tmp.index.get_loc('/entryinfo/54762-corbeau-seats-rally-tendring-clacton-2019/2226942/')
+    lastcar = tmp[-1:].index[0]
+    overall_idx = df_overall.index.get_loc( lastcar )
+    _df_overall = df_overall[xcols][:(overall_idx+1)]
+    #Then slice to 1 past this for lowest ranked car in selection so we donlt rebase irrelevant/lower cars
     
     #Also perhaps provide an option to generate charts just relative to cars identified in codes?
     
     #overallGapToLeader: bar chart showing overall gap to leader
-    tmp = pd.merge(tmp,_gapToLeaderBar(-df_overall[xcols], 'overall', stages, False, False), left_index=True, right_index=True)
+    tmp = pd.merge(tmp,_gapToLeaderBar(-_df_overall, 'overall', stages, False, False), left_index=True, right_index=True)
 
     #overallPosition: step line chart showing evolution of overall position
 
     #We need to pass a position table in
-    xx=_positionStep(df_overall_pos[xcols], 'overall', stages)[['overallPosition']]
+    xx=_positionStep(_df_overall, 'overall', stages)[['overallPosition']]
     tmp = pd.merge(tmp, xx, left_index=True, right_index=True)
 
     
@@ -724,25 +777,25 @@ def rally_report(codes, rebase):
     moveColumn(tmp, 'CarNum', pos=0)
     
     s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
-
-    return s2
+    
+    return tmp, s2
     
 
 ```
 
 ```python
-codes = pd.DataFrame(df_rally_overall[df_rally_overall['Class']=='C'].index.tolist()).rename(columns={0:'entryId'}).set_index('entryId').head()
+codes = pd.DataFrame(df_rally_overall[df_rally_overall['Class']=='C'].index.tolist()).rename(columns={0:'entryId'}).set_index('entryId')
 codes
 
 ```
 
 ```python
-wREBASE=codes.iloc[2].name
+wREBASE=codes.iloc[10].name
 wREBASE
 ```
 
 ```python
-s2 = rally_report(codes, wREBASE)
+tmp, s2 = rally_report(codes, wREBASE)
 display(HTML(s2))
 ```
 
@@ -753,6 +806,74 @@ dakar.getTablePNG(s2, fnstub='overall_{}_'.format(wREBASE.replace('/','_')),scal
 ```python
 from IPython.display import Image
 Image(_)
+```
+
+```python
+
+```
+
+```python
+#TOP 20 overall
+codes = pd.DataFrame(df_rally_overall[:20].index.tolist()).rename(columns={0:'entryId'}).set_index('entryId')
+wREBASE=codes.iloc[7].name
+print(wREBASE)
+codes
+
+```
+
+```python
+tmp, s2 = rally_report(codes, wREBASE)
+_ = dakar.getTablePNG(s2, fnstub='overall_{}_'.format(wREBASE.replace('/','_')),scale_factor=2)
+Image(_)
+```
+
+```python
+_
+```
+
+## Widgets Example
+
+```javascript
+IPython.OutputArea.auto_scroll_threshold = 9999;
+
+```
+
+```python
+import ipywidgets as widgets
+from ipywidgets import interact
+
+classes = widgets.Dropdown(
+    options=['All']+df_rally_overall['Class'].unique().tolist(),
+    value='All', description='Class:', disabled=False )
+
+def carsInClass(qclass):
+    #Can't we also pass a dict of key/vals to the widget?
+    if qclass=='All':
+        return df_rally_overall['CarNum'].to_list()
+    return df_rally_overall[df_rally_overall['Class']==qclass]['CarNum'].to_list()
+
+carNum = widgets.Dropdown(
+    options=carsInClass(classes.value),
+    description='Car:', disabled=False)
+
+def update_drivers(*args):
+    carlist = carsInClass(classes.value)
+    carNum.options = carlist
+    
+classes.observe(update_drivers, 'value')
+
+def rally_report2(cl, carNum):
+    rebase = df_rally_overall[df_rally_overall['CarNum']==carNum].index[0]
+    carNums = df_rally_overall[df_rally_overall['CarNum'].isin(carsInClass(cl))].index.tolist()
+    codes = pd.DataFrame(carNums).rename(columns={0:'entryId'}).set_index('entryId')
+    tmp, s2 = rally_report(codes, rebase)
+    
+    #display(HTML(s2))
+    _ = dakar.getTablePNG(s2, fnstub='overall_{}_'.format(rebase.replace('/','_')),scale_factor=2)
+    display(Image(_))
+    print(_)
+    
+interact(rally_report2, cl=classes, carNum=carNum);
 ```
 
 ```python
