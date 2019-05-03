@@ -190,6 +190,7 @@ A little helper to scrape tables in dataframes...
 ```python
 def dfify(table):
     df = pd.read_html('<html><body>{}</body></html>'.format(table))[0]
+    df = df.dropna(axis=1, how='all').dropna(axis=0, how='all')
     return df
 ```
 
