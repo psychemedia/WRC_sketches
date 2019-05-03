@@ -29,7 +29,7 @@ def getTime(ts, ms=False):
         ts=str(1000*int(ts.split(' ')[0]))
     t=ts.split(':')
     if len(t)==3:
-        tm=60*int(t[0])+60*int(t[1])+float(t[2])
+        tm=3600*int(t[0])+60*int(t[1])+float(t[2])
     elif len(t)==2:
         tm=60*int(t[0])+float(t[1])
     else:
