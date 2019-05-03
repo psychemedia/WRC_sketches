@@ -508,34 +508,117 @@ wo = __import__("WRC Overall")
 ```
 
 ```python
+import io
+
+#Dask may require dataframe spec
+#But what about multi-index dataframes?
+def schema_df_create(df):
+    ''' Generate a an empty data frame according to the schema of a pre-existing data frame. '''
+    
+    idx_name = df.index.name
+    idx_type = df.index.dtype
+    
+    cnames = [idx_name]+[c for c in df.columns]
+    zz = pd.read_csv(io.StringIO(""),
+                     names=cnames,
+                     dtype=dict(zip(cnames,[idx_type]+df.dtypes.to_list())),
+                     index_col=[idx_name])
+    #print(zz.info())
+    return zz
+
+def schema_df_drop(df):
+    ''' Create an empty dataframe with a schema of an existing dataframe
+        by dropping all data from the existing dataframe.
+    '''
+    return df.drop(df.index)
+
+```
+
+```python
+#Can we improve performance?
+#https://www.ellicium.com/python-multiprocessing-pool-process/
+from multiprocessing import cpu_count
+
+num_cores = cpu_count()
+
+#https://towardsdatascience.com/how-i-learned-to-love-parallelized-applies-with-python-pandas-dask-and-numba-f06b0b367138
+#!pip3 install dask
+#!pip3 install cloudpickle
+from dask import dataframe as dd
+
+```
+
+```python
 #These are in wo as well - should move to dakar utils
 
 
 #TO DO - the chart should be separated out from the cols generator
 # The chart function should return only the chart
 
-
 #This has been changed from wo so as not to change polarity of the times
-def _gapToLeaderBar(Xtmpq, typ, stages=None, milliseconds=True, flip=True):
+def _gapToLeaderBar(Xtmpq, typ, stages=None, milliseconds=True, flip=True, items=None):
     if milliseconds:
         Xtmpq = Xtmpq/1000
     if typ=='stage':
         Xtmpq.columns = ['SS_{}'.format(c) for c in Xtmpq.columns]
     else:
         Xtmpq.columns = ['SS_{}_{}'.format(c, typ) for c in Xtmpq.columns]
+    _tmp='_tmp'
     k = '{}GapToLeader'.format(typ)
-    Xtmpq[k] = Xtmpq[[c for c in Xtmpq.columns ]].values.tolist()
+    Xtmpq[_tmp] = Xtmpq[[c for c in Xtmpq.columns ]].values.tolist()
     flip = -1 if flip else 1
-    Xtmpq[k] = Xtmpq[k].apply(lambda x: [flip * y for y in x])
-    Xtmpq[k] = Xtmpq[k].apply(sparkline2, typ='bar', dot=True)
+    Xtmpq[_tmp] = Xtmpq[_tmp].apply(lambda x: [flip * y for y in x])
+    #Xtmpq[k] = Xtmpq[k].apply(sparkline2, typ='bar', dot=True)
+    #Chart generation is the slow step, so only do it where we need it
+    if items is None:
+        #Xtmpq[k] = Xtmpq[_tmp].apply(sparkline2, typ='bar', dot=True)
+        num_partitions = num_cores if num_cores < len(Xtmpq[_tmp]) else len(Xtmpq[_tmp])
+        Xtmpq[k]=dd.from_pandas(Xtmpq[_tmp],npartitions=num_partitions).map_partitions( lambda df : df.apply( lambda x : sparkline2(x, typ='bar', dot=True)), 
+                                                                                       meta=pd.Series(dtype=object)).compute(scheduler='processes')
+
+    else:
+        #Ony generate charts for specified rows
+        #Create a dummy col
+        Xtmpq[k]='s'
+        #Use loc for index vals, iloc for row number
+        #If the items are passed as dataframe index, we need to convert to a list
+        if isinstance(items,pd.core.frame.DataFrame):
+            items = items.index.to_list()
+        #Xtmpq.loc[items,k] = Xtmpq[_tmp].loc[items].apply(sparkline2, typ='bar', dot=True)
+        num_partitions = num_cores if num_cores < len(Xtmpq[_tmp]) else len(Xtmpq[_tmp])
+        Xtmpq.loc[items,k]=dd.from_pandas(Xtmpq[_tmp].loc[items],npartitions=num_partitions).map_partitions( lambda df : df.apply( lambda x : sparkline2(x, typ='bar', dot=True)), 
+                                                                                       meta=pd.Series(dtype=object)).compute(scheduler='processes')
+
+    Xtmpq = Xtmpq.drop(_tmp, 1)
     return Xtmpq 
 
-def _positionStep(Xtmpq, typ, stages=None):
+import time
+def _positionStep(Xtmpq, typ, stages=None, items=None):
     Xtmpq.columns = ['SS_{}_{}_pos'.format(c, typ) for c in Xtmpq.columns]
     k = '{}Position'.format(typ)
-    Xtmpq[k] = Xtmpq[[c for c in Xtmpq.columns ]].values.tolist()
-    Xtmpq[k] = Xtmpq[k].apply(lambda x: [-y for y in x])
-    Xtmpq[k] = Xtmpq[k].apply(sparklineStep)
+    _tmp='tmp'
+    Xtmpq[_tmp] = Xtmpq[[c for c in Xtmpq.columns ]].values.tolist()
+    Xtmpq[_tmp] = Xtmpq[_tmp].apply(lambda x: [-y for y in x])
+    if items is None:
+        t0 = time.time()
+        #Xtmpq[k] = Xtmpq[_tmp].apply(sparklineStep)
+        t1 = time.time()
+        #print("Time to process without Dask {}".format(t1-t0))
+        num_partitions = num_cores if num_cores < len(Xtmpq[_tmp]) else len(Xtmpq[_tmp])
+        t0 = time.time()
+        Xtmpq[k]=dd.from_pandas(Xtmpq[_tmp],npartitions=num_partitions).map_partitions( lambda df : df.apply(sparklineStep), meta=pd.Series(dtype=object)).compute(scheduler='processes')
+        t1 = time.time()
+        #print("Time to process with Dask {}".format(t1-t0))
+        #scheduler='single-threaded | threads | processes')
+    else:
+        Xtmpq[k]=''
+        if isinstance(items,pd.core.frame.DataFrame):
+            items = items.index.to_list() 
+        #Xtmpq.loc[items, k]= Xtmpq[_tmp].loc[items].apply(sparklineStep)
+        num_partitions =num_cores if num_cores<len(items) else len(items)
+        Xtmpq.loc[items, k]=dd.from_pandas(Xtmpq[_tmp].loc[items],npartitions=num_partitions).map_partitions( lambda df : df.apply(sparklineStep), meta=pd.Series(dtype=object)).compute(scheduler='processes')
+        
+    Xtmpq = Xtmpq.drop(_tmp, 1)
     return Xtmpq 
 
 ```
