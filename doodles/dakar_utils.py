@@ -296,7 +296,9 @@ def getTableImage(url, fn='dummy_table', basepath='.', path='.',
     #browser.set_window_size(width, height)
     browser.get(url)
     #Give the map tiles some time to load
-    time.sleep(delay)
+    #Should really do this with some sort of browseronload check
+    if delay is not None:
+        time.sleep(delay)
     imgpath='{}/{}.png'.format(path,fn)
     imgfn = '{}/{}'.format(basepath, imgpath)
     imgfile = '{}/{}'.format(os.getcwd(),imgfn)
