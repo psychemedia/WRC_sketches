@@ -276,6 +276,25 @@ df.head()
 print(df['CarNum'].tolist())
 ```
 
+## Entry List
+
+The entry list provides the basis for a whole set of metadata.
+
+```python
+entrylist_url = 'https://www.ewrc-results.com/entries/54762-corbeau-seats-rally-tendring-clacton-2019/'
+soup = soupify(entrylist_url)
+```
+
+```python
+entrylist_table = soup.find('div',{'class':'startlist'}).find('table')
+df_entrylist = dfify(entrylist_table)
+df_entrylist.columns = ['CarNum', 'DriverName','CoDriverName','Team','Car','Class','Meta']
+df_entrylist['carNum'] = df_entrylist['CarNum'].str.extract(r'#(.*)')
+df_entrylist.head()
+
+#TO DO - flag, driverId
+```
+
 ## All in One - Stage Times
 
 The stage Times pags is a single page for pretty much all the timing data we need...
