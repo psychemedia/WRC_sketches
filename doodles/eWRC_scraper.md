@@ -458,6 +458,8 @@ df.head()
 df.tail()
 ```
 
+For a comprehensive table, we need to pull in things like `Class` into this table.
+
 ```python
 df_overall = pd.DataFrame(df['overalltimes'].tolist(), index= df.index)
 df_overall.columns = range(1,df_overall.shape[1]+1)
@@ -674,6 +676,10 @@ df_stages_pos.head()
 ```
 
 ```python
+df_stages_pos.tail()
+```
+
+```python
 #A little test that ranking on the overall positions pase on times matches overall rankings in data
 #_df_overall_pos = df_overall.rank(method='min', ascending=False)
 #_df_overall_pos.equals(df_overall_pos)
@@ -709,6 +715,8 @@ codes
 tmp = pd.merge(codes, df_rally_overall[['Class']], left_index=True, right_index=True)
 ```
 
+Generating the inline charts is really slow.... TO DO: check to see if there are any optimitsations...
+
 ```python
 #overallGapToLeader: bar chart showing overall gap to leader
 
@@ -722,6 +730,7 @@ display(HTML(s2))
 
 ```python
 #overallPosition: step line chart showing evolution of overall position
+#For retired cars, this will return an appropriately cut-off image
 
 #We need to pass a position table in
 xx=_positionStep(df_overall_pos[xcols], 'overall', stages)[['overallPosition']]
@@ -733,7 +742,12 @@ display(HTML(s2))
 ```
 
 ```python
+df_overall_pos.tail()
+```
+
+```python
 # stageWinnerGap: bar chart showing gap to stage winner
+#For retired cars, this will return an appropriately cut-off image
 #The gapToLeaderBar needs to return the gap to the stage winner
 tmp = pd.merge(tmp,_gapToLeaderBar(-df_stages_winner[xcols], 'stages', stages, False,False), left_index=True, right_index=True)
 #In the preview the SS_N_stages bars are wrong because we have not rebased yet
@@ -810,83 +824,6 @@ display(HTML(s2))
 ```
 
 ```python
-len(df_rally_overall[:85]), df_overall.index.get_loc( '/entryinfo/54762-corbeau-seats-rally-tendring-clacton-2019/2227145/' )
-#'/entryinfo/54762-corbeau-seats-rally-tendring-clacton-2019/2227145/'
-```
-
-```python
-#Reporter
-
-def rally_report(codes, rebase):
-    
-    tmp = pd.merge(codes, df_rally_overall[['Class']], left_index=True, right_index=True)
-    
-    #If we want the charts relative to overall,
-    # we need to assemble them at least on cars ranked above lowest ranked car in codes
-    
-    #But we could optimise by getting rid of lower ranked cars
-    #eg we can get the row index for a given index value as:
-    #tmp.index.get_loc('/entryinfo/54762-corbeau-seats-rally-tendring-clacton-2019/2226942/')
-    lastcar = tmp[-1:].index[0]
-    overall_idx = df_overall.index.get_loc( lastcar )
-    _df_overall = df_overall[xcols][:(overall_idx+1)]
-    #Then slice to 1 past this for lowest ranked car in selection so we donlt rebase irrelevant/lower cars
-    
-    #Also perhaps provide an option to generate charts just relative to cars identified in codes?
-    
-    #overallGapToLeader: bar chart showing overall gap to leader
-    tmp = pd.merge(tmp,_gapToLeaderBar(-_df_overall, 'overall', stages, False, False), left_index=True, right_index=True)
-
-    #overallPosition: step line chart showing evolution of overall position
-
-    #We need to pass a position table in
-    xx=_positionStep(_df_overall, 'overall', stages)[['overallPosition']]
-    tmp = pd.merge(tmp, xx, left_index=True, right_index=True)
-
-    
-    # stageWinnerGap: bar chart showing gap to stage winner
-    #The gapToLeaderBar needs to return the gap to the stage winner
-    tmp = pd.merge(tmp,_gapToLeaderBar(-df_stages_winner[xcols], 'stages', stages, False,False), left_index=True, right_index=True)
-    #In the preview the SS_N_stages bars are wrong because we have not rebased yet
-    tmp.rename(columns={'stagesGapToLeader':'stageWinnerGap'},inplace=True)
-
-    # stagePosition: step chart showing stage positions
-    xx=_positionStep(df_stages_pos[xcols], 'stages', stages)['stagesPosition']
-    tmp = pd.merge(tmp, xx, left_index=True, right_index=True)
-
-    #Rebase
-    cols = [c for c in tmp.columns if c.startswith('SS')]
-    tmp[cols] = tmp[cols].apply(_rebaseTimes, bib=rebase, axis=0)
-
-    # Gap: bar chart showing gap relative to rebased entry
-    # This is just taken from the overall in the table
-    tmp = wo.gapBar(tmp)
-
-    
-    
-    moveColumn(tmp, 'stageWinnerGap', right_of='overallPosition')
-    moveColumn(tmp, 'stagesPosition', right_of='overallPosition')
-    moveColumn(tmp, 'Gap', right_of='overallPosition')
-
-    moveColumn(tmp, 'overallPosition', pos=0)
-    moveColumn(tmp, 'overallGapToLeader', right_of='overallPosition')
-    
-    tmp = pd.merge(tmp, df_rally_overall[['Pos']], left_index=True, right_index=True)
-    moveColumn(tmp, 'Pos', right_of='overallGapToLeader')
-    moveColumn(tmp, 'Class', pos=0)
-
-    tmp = pd.merge(tmp, df_rally_overall[['CarNum','Class Rank']], left_index=True, right_index=True)
-    moveColumn(tmp, 'Class Rank', right_of='Class')
-    moveColumn(tmp, 'CarNum', pos=0)
-    
-    s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
-    
-    return tmp, s2
-    
-
-```
-
-```python
 codes = pd.DataFrame(df_rally_overall[df_rally_overall['Class']=='C'].index.tolist()).rename(columns={0:'entryId'}).set_index('entryId')
 codes
 
@@ -895,6 +832,93 @@ codes
 ```python
 wREBASE=codes.iloc[10].name
 wREBASE
+```
+
+```python
+df.columns
+```
+
+```python
+#Reporter
+
+def rally_report(codes, rebase):
+    #rebase is the index value
+    #tmp = pd.merge(codes, df_rally_overall[['Class']], how='left', left_index=True, right_index=True)
+    tmp = pd.merge(codes, df[['carNum']], how='left', left_index=True, right_index=True)
+    #tmp = pd.merge(tmp, df_entrylist[['Class','carNum']], how='left', on='carNum')
+    #https://stackoverflow.com/a/11982843/454773
+    tmp = tmp.reset_index().merge(df_entrylist[['Class','carNum']], how="left", on='carNum').set_index('entryId')
+    print(tmp[-1:].index)
+    #If we want the charts relative to overall,
+    # we need to assemble them at least on cars ranked above lowest ranked car in codes
+    
+    #But we could optimise by getting rid of lower ranked cars
+    #eg we can get the row index for a given index value as:
+    #tmp.index.get_loc('/entryinfo/54762-corbeau-seats-rally-tendring-clacton-2019/2226942/')
+    lastcar = tmp[-1:].index[0]
+    print(lastcar)
+    overall_idx = df_overall.index.get_loc( lastcar )
+    #Then slice to 1 past this for lowest ranked car in selection so we don't rebase irrelevant/lower cars
+    
+    #Also perhaps provide an option to generate charts just relative to cars identified in codes?
+    
+    #overallGapToLeader: bar chart showing overall gap to leader
+    tmp = pd.merge(tmp,_gapToLeaderBar(-df_overall[xcols][:(overall_idx+1)], 'overall', stages, False, False, codes), left_index=True, right_index=True)
+    print(tmp[-1:].index)
+    #overallPosition: step line chart showing evolution of overall position
+    
+    #We need to pass a position table in
+    xx=_positionStep(df_overall_pos[xcols][:(overall_idx+1)], 'overall', stages, codes)[['overallPosition']]
+    tmp = pd.merge(tmp, xx, left_index=True, right_index=True)
+
+    # stageWinnerGap: bar chart showing gap to stage winner
+    #The gapToLeaderBar needs to return the gap to the stage winner
+    tmp = pd.merge(tmp,_gapToLeaderBar(-df_stages_winner[xcols][:(overall_idx+1)], 'stages', stages, False,False, codes), left_index=True, right_index=True)
+    #In the preview the SS_N_stages bars are wrong because we have not rebased yet
+    tmp.rename(columns={'stagesGapToLeader':'stageWinnerGap'},inplace=True)
+
+    # stagePosition: step chart showing stage positions
+    xx=_positionStep(df_stages_pos[xcols][:(overall_idx+1)], 'stages', stages, codes)['stagesPosition']
+    tmp = pd.merge(tmp, xx, left_index=True, right_index=True)
+
+    #Rebase
+    cols = [c for c in tmp.columns if c.startswith('SS')]
+    tmp[cols] = tmp[cols].apply(_rebaseTimes, bib=rebase, axis=0)
+
+    # Gap: bar chart showing gap relative to rebased entry
+    # This is just taken from the overall in the table
+    #The gap should be ignored for the rebased driver?
+    tmp = wo.gapBar(tmp)
+    print('v',tmp[-1:].index)
+
+    moveColumn(tmp, 'stageWinnerGap', right_of='overallPosition')
+    moveColumn(tmp, 'stagesPosition', right_of='overallPosition')
+    moveColumn(tmp, 'Gap', right_of='overallPosition')
+
+    moveColumn(tmp, 'overallPosition', pos=0)
+    moveColumn(tmp, 'overallGapToLeader', right_of='overallPosition')
+    print('w',tmp[-1:].index)
+    tmp = pd.merge(tmp, df_rally_overall[['Pos']], how='left', left_index=True, right_index=True)
+    moveColumn(tmp, 'Pos', right_of='overallGapToLeader')
+    moveColumn(tmp, 'Class', pos=0)
+    print('x',tmp[-1:].index)
+    #tmp = pd.merge(tmp, df_rally_overall[['CarNum','Class Rank']], how='left', left_index=True, right_index=True)
+    tmp = pd.merge(tmp, df_rally_overall[['Class Rank']], how='left', left_index=True, right_index=True)
+    moveColumn(tmp, 'Class Rank', right_of='Class')
+    moveColumn(tmp, 'carNum', pos=0)
+    #disambiguate carnum
+    tmp['carNum'] = '#'+tmp['carNum'].astype(str)
+    tmp = tmp.rename(columns={'carNum': 'CarNum'})
+    print('y',tmp[-1:].index)
+    
+    #is this the slow bit?
+    print('styling...')
+    s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
+    print('...done')
+    return tmp, s2
+    
+
+
 ```
 
 ```python
@@ -909,10 +933,6 @@ dakar.getTablePNG(s2, fnstub='overall_{}_'.format(wREBASE.replace('/','_')),scal
 ```python
 from IPython.display import Image
 Image(_)
-```
-
-```python
-
 ```
 
 ```python
@@ -936,6 +956,9 @@ _
 
 ## Widgets Example
 
+
+Full results should cope with retirements becuase they affect stage rankings?
+
 ```javascript
 IPython.OutputArea.auto_scroll_threshold = 9999;
 
@@ -946,14 +969,16 @@ import ipywidgets as widgets
 from ipywidgets import interact
 
 classes = widgets.Dropdown(
-    options=['All']+df_rally_overall['Class'].unique().tolist(),
+    #Omit car 0
+    options=['All']+df_entrylist[df_entrylist['CarNum']!='#0']['Class'].unique().tolist(),
     value='All', description='Class:', disabled=False )
 
 def carsInClass(qclass):
     #Can't we also pass a dict of key/vals to the widget?
+    #Omit car 0
     if qclass=='All':
-        return df_rally_overall['CarNum'].to_list()
-    return df_rally_overall[df_rally_overall['Class']==qclass]['CarNum'].to_list()
+        return df_entrylist[df_entrylist['CarNum']!='#0']['carNum'].to_list()
+    return df_entrylist[df_entrylist['CarNum']!='#0' & df_entrylist['Class']==qclass]['carNum'].to_list()
 
 carNum = widgets.Dropdown(
     options=carsInClass(classes.value),
@@ -966,17 +991,48 @@ def update_drivers(*args):
 classes.observe(update_drivers, 'value')
 
 def rally_report2(cl, carNum):
-    rebase = df_rally_overall[df_rally_overall['CarNum']==carNum].index[0]
-    carNums = df_rally_overall[df_rally_overall['CarNum'].isin(carsInClass(cl))].index.tolist()
+    #rebase = df_rally_overall[df_rally_overall['CarNum']==carNum].index[0]
+    #carNums = df_rally_overall[df_rally_overall['CarNum'].isin(carsInClass(cl))].index.tolist()
+    rebase = df[df['carNum']==carNum].index[0]
+
+    carNums = df[df['carNum'].isin(carsInClass(cl))].index.tolist()
+
     codes = pd.DataFrame(carNums).rename(columns={0:'entryId'}).set_index('entryId')
+    print(codes[-1:])
     tmp, s2 = rally_report(codes, rebase)
-    
+
     #display(HTML(s2))
-    _ = dakar.getTablePNG(s2, fnstub='overall_{}_'.format(rebase.replace('/','_')),scale_factor=2)
+    rally_logo='<img width="100%" src="/Users/tonyhirst/Documents/GitHub/WRC_sketches/doodles/images/CSRTC-Logo-Banner-2019-01-1920x600-e1527255159629.jpg"/>'
+    #rallydj_logo='<img style="float: left; src="/Users/tonyhirst/Documents/GitHub/WRC_sketches/doodles/images/rallydj.png"/>'
+    #datasrc_logo='<img style="background-color:black;float: right;" src="/Users/tonyhirst/Documents/GitHub/WRC_sketches/doodles/images/ewrcresults800.png"/>'
+    #bottom_logos='<div>'+rallydj_logo+datasrc_logo+'</div>'
+    footer='<div style="margin-top:50px;margin-bottom:20px">Results and timing data sourced from <em>ewrc-results.com</em>. Chart generated by <em>rallydatajunkie.com</em>.</div>'
+    #footer1=bottom_logos
+    inclass='' if cl=='All' else ' (Class {})'.format(cl)
+    title='<div><h1>Overall Results'+inclass+'</h1><p>Times rebased relative to car {}.</p></div>'.format(carNum)
+    
+    html='<div style="font-family:sans-serif;margin-top:10px;margin-bottom:10px"><div style="margin-top:10px;margin-bottom:50px;">'+rally_logo+'</div>'
+    html = html+'<div style="margin-left:20px;margin-right:20px;">'+title+s2+'</div>'+footer+'</div>'
+    
+    print('grabbing screenshot...')
+    _ = dakar.getTablePNG(html, fnstub='overall_{}_'.format(rebase.replace('/','_')),scale_factor=2)
+    print('...done')
     display(Image(_))
     print(_)
     
 interact(rally_report2, cl=classes, carNum=carNum);
+```
+
+```python
+#last is 2236623
+```
+
+```python
+df_entrylist.head()
+```
+
+```python
+df.head()
 ```
 
 ```python
