@@ -298,7 +298,7 @@ df_entrylist.head()
 
 ## All in One - Stage Times
 
-The stage Times pags is a single page for pretty much all the timing data we need...
+The Stage Times page is a single page for pretty much all the timing data we need...
 
 ```python
 url='https://www.ewrc-results.com/times/54762-corbeau-seats-rally-tendring-clacton-2019/'
