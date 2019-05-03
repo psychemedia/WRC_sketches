@@ -279,12 +279,18 @@ def setup_screenshot(driver,path):
     driver.set_window_size(original_size['width'], original_size['height'])
 
 
-def getTableImage(url, fn='dummy_table', basepath='.', path='.', delay=5, scale_factor=2, height=420, width=800):
+def getTableImage(url, fn='dummy_table', basepath='.', path='.',
+                  delay=None, scale_factor=2, height=420, width=800, headless=True):
     ''' Render HTML file in browser and grab a screenshot. '''
     
+    #options = Options()
+    #options.headless = True
+
     opt = webdriver.ChromeOptions()
     opt.add_argument('--force-device-scale-factor={}'.format(scale_factor))
-
+    if headless:
+        opt.add_argument('headless')
+        
     browser = webdriver.Chrome(options=opt)
     
     #browser.set_window_size(width, height)
