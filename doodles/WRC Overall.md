@@ -91,7 +91,7 @@ if __name__=='__main__':
     rc='RC1'
     rally='Argentina'
     typ='overall'
-    wREBASE='OGI'
+    wREBASE='NEU'
 ```
 
 ### Day Based Reporting
@@ -155,7 +155,8 @@ if __name__=='__main__':
 ```
 
 ```python
-def _gapToLeaderBar(Xtmpq, typ, stages=None, milliseconds=True):
+#We can optimise this function so that we only generate charts for specified rows
+def _gapToLeaderBar(Xtmpq, typ, stages=None, milliseconds=True, items=None):
     if milliseconds:
         Xtmpq = Xtmpq/1000
     if typ=='stage':
@@ -165,15 +166,21 @@ def _gapToLeaderBar(Xtmpq, typ, stages=None, milliseconds=True):
     k = '{}GapToLeader'.format(typ)
     Xtmpq[k] = Xtmpq[[c for c in Xtmpq.columns ]].values.tolist()
     Xtmpq[k] = Xtmpq[k].apply(lambda x: [-y for y in x])
-    Xtmpq[k] = Xtmpq[k].apply(sparkline2, typ='bar', dot=True)
+    
+    #Chart generation is the slow step, so only do it where we need it
+    if items is None:
+        Xtmpq[k] = Xtmpq[k].apply(sparkline2, typ='bar', dot=True)
+    else:
+        #Use loc for index vals, iloc for row number
+        Xtmpq[k].loc[items] = Xtmpq[k].loc[items].apply(sparkline2, typ='bar', dot=True)
     return Xtmpq 
 
-def gapToLeaderBar2(Xtmpq, typ, stages=None, milliseconds=True):
+def gapToLeaderBar2(Xtmpq, typ, stages=None, milliseconds=True, items=None):
     Xtmpq = Xtmpq[['entryId','snum', 'diffFirstMs']].pivot(index='entryId',columns='snum',values='diffFirstMs')
-    return _gapToLeaderBar(Xtmpq, typ, stages, milliseconds)
+    return _gapToLeaderBar(Xtmpq, typ, stages, milliseconds, items)
 ```
 
-```python
+```
 #Need to deprecate this...
 def gapToLeaderBar(conn, rally, rc, typ, stages=None, milliseconds=True):
     Xtmpq = sr.dbGetStageRank(conn, rally, rc, typ, stages)#.head()
@@ -189,7 +196,9 @@ def gapToLeaderBar(conn, rally, rc, typ, stages=None, milliseconds=True):
     Xtmpq[k] = Xtmpq[k].apply(lambda x: [-y for y in x])
     Xtmpq[k] = Xtmpq[k].apply(sparkline2, typ='bar', dot=True)
     return Xtmpq 
+```
 
+```python
 def gapBar(df):
     ''' Bar chart showing rebased gap at each stage. '''
     col='Gap'
@@ -209,6 +218,8 @@ if __name__=='__main__':
 if __name__=='__main__':
     display(sr.dbGetStageRank(conn2, rally, rc, typ, None)[['entryId','snum', 'position']].pivot(index='entryId',columns='snum',values='position'))
 ```
+
+Chart generation is slow. Is this in the pivot steps, perhaps?
 
 ```python
 #def positionStep(conn, rally, rc, typ, stages=None):
@@ -259,11 +270,12 @@ def generateOverallResultsChartable(conn, rally, rc, rebase=None, stages=None, d
     wrc['Pos'] = overallAtLastStage(conn, rally, rc, typ, stages)
     moveColumn(wrc, 'Pos', right_of='overallGapToLeader')
     #By this point it seems we may have introduced a duplicate? But how?
-    #The following sometimes breaks?
+    #Add in step chart for stage ranks
     #wrc = pd.merge(wrc, positionStep(conn, rally, rc, 'stage', stages)[['stagePosition']], left_index=True, right_index=True)
     _stages_stage = sr.dbGetStageRank(conn, rally, rc, 'stage', stages)
     wrc = pd.merge(wrc, positionStep(_stages_stage, 'stage', stages)[['stagePosition']], left_index=True, right_index=True)
 
+    #Add in bar chart for gap to stage leader
     #wrc = pd.merge(wrc, gapToLeaderBar(conn, rally, rc, 'stage', stages), left_index=True, right_index=True)
     wrc = pd.merge(wrc, gapToLeaderBar2(_stages_stage, 'stage', stages), left_index=True, right_index=True)
     wrc.rename(columns={'stageGapToLeader':'stageWinnerGap'},inplace=True)
@@ -281,11 +293,14 @@ def generateOverallResultsChartable(conn, rally, rc, rebase=None, stages=None, d
     
     cols = [c for c in wrc.columns if c.startswith('SS')]
       
+    #We need to always rebase to make sure the stage bars are correct
+    #if None rebase to the overall leader at last stage?
     if rebase is not None:
         #This will break if we provide one of the duplicate Code values...
         #If not, we should be okay...
         wrc[cols] = -wrc[cols].apply(_rebaseTimes, bib=rebase, axis=0)
     
+    #Add in bar chart showing gap relative to other cars from rebased car
     #This needs to be done after rebasing
     wrc = gapBar(wrc)
     moveColumn(wrc, 'Gap', left_of='stagePosition')
@@ -304,7 +319,7 @@ if __name__=='__main__':
 
 ```python
 if __name__=='__main__':
-    wREBASE='MEE'
+    wREBASE='NEU'
     tmp = generateOverallResultsChartable(conn2, rally, rc, rebase=wREBASE, stages=None)#[9])
     tmp = generateOverallResultsChartable(conn2, rally, rc, rebase=wREBASE, days=4)#[9])
 
