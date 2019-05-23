@@ -12,6 +12,15 @@
 #     name: python3
 # ---
 
+# # Dakar_utils
+#
+# This module was originally created for rendering rally tables for the Dakar Rally, 2019, based on routines developed previousy for WRC.
+#
+# This module should now be regarded as deprecated. Instead use the rallyview package.
+
+import warnings
+warnings.warn('This module is now deprecated. Use the rallydatajunkie/rallyview module instead.'
+
 # ## Time handling Utilities
 
 #Preferred time format
@@ -278,6 +287,8 @@ def setup_screenshot(driver,path):
     driver.find_element_by_tag_name('body').screenshot(path)  # avoids scrollbar
     driver.set_window_size(original_size['width'], original_size['height'])
 
+
+# Should we allow support different browsers for the screengrabs? eg Firefox as well as Chrome? OR is `force-device-scale-factor` chrome only (or maybe there is a Firefox equivalent?) What does it do, anyway?
 
 def getTableImage(url, fn='dummy_table', basepath='.', path='.',
                   delay=None, scale_factor=2, height=420, width=800, headless=True):
