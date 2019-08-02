@@ -4,8 +4,8 @@
 #     text_representation:
 #       extension: .py
 #       format_name: light
-#       format_version: '1.3'
-#       jupytext_version: 0.8.6
+#       format_version: '1.4'
+#       jupytext_version: 1.2.1
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -19,7 +19,7 @@
 # This module should now be regarded as deprecated. Instead use the rallyview package.
 
 import warnings
-warnings.warn('This module is now deprecated. Use the rallydatajunkie/rallyview module instead.'
+warnings.warn('This module is now deprecated. Use the rallydatajunkie/rallyview module instead.')
 
 # ## Time handling Utilities
 
@@ -291,7 +291,8 @@ def setup_screenshot(driver,path):
 # Should we allow support different browsers for the screengrabs? eg Firefox as well as Chrome? OR is `force-device-scale-factor` chrome only (or maybe there is a Firefox equivalent?) What does it do, anyway?
 
 def getTableImage(url, fn='dummy_table', basepath='.', path='.',
-                  delay=None, scale_factor=2, height=420, width=800, headless=True):
+                  delay=None, scale_factor=2, height=420, width=800, headless=True,
+                  logging=False):
     ''' Render HTML file in browser and grab a screenshot. '''
     
     #options = Options()
@@ -317,7 +318,8 @@ def getTableImage(url, fn='dummy_table', basepath='.', path='.',
     setup_screenshot(browser,imgfile)
     browser.quit()
     os.remove(imgfile.replace('.png','.html'))
-    #print(imgfn)
+    if logging:
+        print("Save to {}".format(imgfn))
     return imgpath
 
 
