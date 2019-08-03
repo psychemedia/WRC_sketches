@@ -28,11 +28,15 @@ import pandas as pd
 if __name__=='__main__':
     #dbname='wrc18.db'
     YEAR=2019
-    dbname='chile19.db'
+    dbname='../../wrc-timing/finland19.db'
     conn = sqlite3.connect(dbname)
-    rally='Chile'
-    rebase = 'LOE'
+    rally='Finland'
+    rebase = 'NEU'
     rebase = ''
+```
+
+```python
+pd.read_sql('SELECT * FROM event_metadata',conn).columns
 ```
 
 ```python
@@ -80,9 +84,11 @@ yy.loc['SS5']
 
 ```python
 def distToRun(nextStage):
+    ''' Return the distance still to run over the rest of the rally. '''
     return distances.loc[nextStage:,:]['distance'].values.sum()
 
 def stageDist(stage):
+    ''' Return the distance to run over one or more stages. '''
     if isinstance(stage,list):
         return distances.loc[stage,:]['distance'].sum()
     return distances.loc[stage,:]['distance']
@@ -140,7 +146,7 @@ def requiredPace(nextstage, times,  rebase=None, allrally=True):
         but not as a speed unless we have a target speed.
     '''
     
-    if allrally and not isinstance(nextstage,list)
+    if allrally and not isinstance(nextstage,list):
         dist = distToRun(nextstage)
         print('Distance to run starting at {}: {} km'.format(nextstage, dist))
     else:
@@ -174,25 +180,76 @@ requiredPace('SS2', stagerank_overall,'MEE' )
 ```python
 def paceReport(stage, rebase=None):
     ''' Time gained / lost per km on a stage. '''
-    stagerank_overall = sr.getEnrichedStageRank(conn, rally, typ='overall', stages=stage).set_index('drivercode')
+    stagerank_overall = sr.getEnrichedStageRank(conn, rally, typ='stage', stages=stage).set_index('drivercode')
     dist = stageDist(stage)
     print('Stage dist is {} km'.format(dist))
     if rebase is None:
-        return (stagerank_overall['stageTimeMs'] / 1000) / dist
+        return (stagerank_overall['elapsedDurationMs'] / 1000) / dist
     else:
-        return ((stagerank_overall['stageTimeMs'] - stagerank_overall.loc[rebase,'stageTimeMs']) / 1000) / dist
+        return ((stagerank_overall['elapsedDurationMs'] - stagerank_overall.loc[rebase,'elapsedDurationMs']) / 1000) / dist
     
-    
+#If we don't rebase, the series gives the time (in s) per km
+
+
+#Also need to be able to rebase relative to:
+# - stage winner
+# - overall leader going in to stage?
+# - overall leader at end of stage?
 ```
 
 ```python
 #Pace report - time gained / lost on stage in seconds per km 
-paceReport('SS1', rebase='OGI')
+paceReport('SS7', rebase='TÄN')
 ```
 
 ```python
-
+paceReport('SS11')
 ```
+
+```python
+type(paceReport('SS1', rebase='OGI'))
+```
+
+Maybe create a table with row per driver and column per stage showing time gained / lost in seconds per km to each other driver on that stage. Display as heatmap.
+
+```python
+def multiStagePaceReport(stages, rebase=None):
+    report = pd.DataFrame()
+    for stage in stages:
+        report[stage] = paceReport(stage, rebase=rebase)
+    return report
+```
+
+```python
+tmp =  multiStagePaceReport(['SS{}'.format(i) for i in range(1,12)], 'TÄN')
+tmp
+```
+
+```python
+from dakar_utils import moreStyleDriverSplitReportBaseDataframe
+from IPython.display import HTML
+
+pd.set_option('precision', 1)
+
+s2 = moreStyleDriverSplitReportBaseDataframe(-tmp.T,'')
+display(HTML(s2))
+```
+
+```python
+#The negative map means we get times as the rebased driver is concerned...
+s2 = moreStyleDriverSplitReportBaseDataframe(-tmp.loc[['LAT', 'MEE', 'LAP', 'TÄN', 'BRE', 'MIK', 'OGI', 'NEU', 'SUN', 'GRE',
+       'VIR'],:],'')
+display(HTML(s2))
+```
+
+```python
+s2 = moreStyleDriverSplitReportBaseDataframe(tmp.T,'')
+display(HTML(s2))
+```
+
+Need some simple functions (they may already exist) for things like:
+
+- driverID / code ordered by overall position rank at end of stage N.
 
 ```python
 
