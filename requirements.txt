@@ -1,5 +1,14 @@
 parse
 pandas
+
+matplotlib
+pytablewriter
+scipy
+
+seaborn
+
 selenium
+
+
 
 voila
