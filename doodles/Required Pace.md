@@ -24,27 +24,26 @@ import sqlite3
 import pandas as pd
 ```
 
-```python
-if __name__=='__main__':
-    #dbname='wrc18.db'
-    YEAR=2019
-    dbname='../../wrc-timing/finland19.db'
-    conn = sqlite3.connect(dbname)
-    rally='Finland'
-    rebase = 'NEU'
-    rebase = ''
+```python tags=["active-ipynb"]
+#dbname='wrc18.db'
+YEAR=2019
+dbname='../../wrc-timing/finland19.db'
+conn = sqlite3.connect(dbname)
+rally='Finland'
+rebase = 'NEU'
+rebase = ''
 ```
 
-```python
+```python tags=["active-ipynb"]
 pd.read_sql('SELECT * FROM event_metadata',conn).columns
 ```
 
-```python
+```python tags=["active-ipynb"]
 #pd.read_sql('SELECT DISTINCT(code) FROM itinerary_controls',conn)
 pd.read_sql('SELECT DISTINCT code, stageId FROM itinerary_stages',conn)
 ```
 
-```python
+```python tags=["active-ipynb"]
 pd.read_sql('SELECT DISTINCT status FROM itinerary_controls',conn)['status'].to_list()
 ```
 
@@ -64,21 +63,21 @@ def stageDistances(conn):
 
 ```
 
-```python
+```python tags=["active-ipynb"]
 yy = stageDistances(conn)
 yy.head()
 ```
 
-```python
+```python tags=["active-ipynb"]
 #Distance still to run
 yy.loc['SS2':,:]['distance'].sum()
 ```
 
-```python
+```python tags=["active-ipynb"]
 yy.loc['SS2':,:].head()
 ```
 
-```python
+```python tags=["active-ipynb"]
 yy.loc['SS5']
 ```
 
@@ -95,46 +94,46 @@ def stageDist(stage):
 
 ```
 
-```python
+```python tags=["active-ipynb"]
 distances = stageDistances(conn)
 stageDist('SS1'), stageDist(['SS1','SS2'])
 ```
 
-```python
+```python tags=["active-ipynb"]
 distToRun('SS6')
 ```
 
-```python
+```python tags=["active-ipynb"]
 q="SELECT * FROM stage_times_overall WHERE stageId=1125 ORDER BY totalTimeMs LIMIT 10 ;"
 pd.read_sql(q,conn)
 ```
 
-```python
+```python tags=["active-ipynb"]
 stagerank_overall = sr.getEnrichedStageRank(conn, rally, typ='overall', stages='SS5').set_index('drivercode')
 stagerank_overall
 ```
 
-```python
+```python tags=["active-ipynb"]
 stagerank_overall.columns
 ```
 
-```python
+```python tags=["active-ipynb"]
 stagerank_overall['snum']
 ```
 
-```python
+```python tags=["active-ipynb"]
 stagerank_overall['totalTimeS'] = stagerank_overall['totalTimeMs']/1000
 ```
 
-```python
+```python tags=["active-ipynb"]
 stagerank_overall[['entrant.name', 'totalTime','totalTimeS']]
 ```
 
-```python
+```python tags=["active-ipynb"]
 stagerank_overall.loc['MEE','totalTimeS']
 ```
 
-```python
+```python tags=["active-ipynb"]
 #rebase
 stagerank_overall['totalTimeS'] - stagerank_overall.loc['MEE','totalTimeS']
 ```
@@ -165,12 +164,12 @@ def requiredPace(nextstage, times,  rebase=None, allrally=True):
     return pd.DataFrame({'timedelta_s':timedelta, 's_per_km':timedelta / dist})
 ```
 
-```python
+```python tags=["active-ipynb"]
 stagerank_overall = sr.getEnrichedStageRank(conn, rally, typ='overall', stages='SS3').set_index('drivercode')
 requiredPace(['SS4','SS5'], stagerank_overall,'LAP', allrally=False )
 ```
 
-```python
+```python tags=["active-ipynb"]
 stagerank_overall = sr.getEnrichedStageRank(conn, rally, typ='overall', stages='SS1').set_index('drivercode')
 requiredPace('SS2', stagerank_overall,'MEE' )
 
@@ -197,16 +196,16 @@ def paceReport(stage, rebase=None):
 # - overall leader at end of stage?
 ```
 
-```python
+```python tags=["active-ipynb"]
 #Pace report - time gained / lost on stage in seconds per km 
 paceReport('SS7', rebase='TÄN')
 ```
 
-```python
+```python tags=["active-ipynb"]
 paceReport('SS11')
 ```
 
-```python
+```python tags=["active-ipynb"]
 type(paceReport('SS1', rebase='OGI'))
 ```
 
@@ -220,14 +219,20 @@ def multiStagePaceReport(stages, rebase=None):
     return report
 ```
 
-```python
-tmp =  multiStagePaceReport(['SS{}'.format(i) for i in range(1,12)], 'TÄN')
+```python tags=["active-ipynb"]
+driver='LAT'
+
+tmp =  multiStagePaceReport(['SS{}'.format(i) for i in range(1,24)], driver )
 tmp
 ```
 
 ```python
 from dakar_utils import moreStyleDriverSplitReportBaseDataframe
 from IPython.display import HTML
+```
+
+```python tags=["active-ipynb"]
+
 
 pd.set_option('precision', 1)
 
@@ -235,14 +240,18 @@ s2 = moreStyleDriverSplitReportBaseDataframe(-tmp.T,'')
 display(HTML(s2))
 ```
 
-```python
+```python tags=["active-ipynb"]
+import dakar_utils as dakar
+
 #The negative map means we get times as the rebased driver is concerned...
-s2 = moreStyleDriverSplitReportBaseDataframe(-tmp.loc[['LAT', 'MEE', 'LAP', 'TÄN', 'BRE', 'MIK', 'OGI', 'NEU', 'SUN', 'GRE',
-       'VIR'],:],'')
+s2 = moreStyleDriverSplitReportBaseDataframe(-tmp.loc[['TÄN', 'LAP', 'LAT', 'MIK', 'OGI', 'BRE', 'NEU', 'SUN', 'GRE',
+       ],:],'')
 display(HTML(s2))
+
+dakar.getTablePNG(s2, fnstub='pace_{}_'.format(driver),scale_factor=2)
 ```
 
-```python
+```python tags=["active-ipynb"]
 s2 = moreStyleDriverSplitReportBaseDataframe(tmp.T,'')
 display(HTML(s2))
 ```
@@ -250,6 +259,11 @@ display(HTML(s2))
 Need some simple functions (they may already exist) for things like:
 
 - driverID / code ordered by overall position rank at end of stage N.
+
+
+## Widgetise
+
+Make some controls for this...
 
 ```python
 
