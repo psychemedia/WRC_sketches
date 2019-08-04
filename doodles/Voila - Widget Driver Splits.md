@@ -136,7 +136,7 @@ driver='LAT'
 tmp =  pace.multiStagePaceReport(['SS{}'.format(i) for i in range(1,24)], driver )
 
 #The negative map means we get times as the rebased driver is concerned...
-s2 = moreStyleDriverSplitReportBaseDataframe(-tmp.loc[,:],'')
+s2 = moreStyleDriverSplitReportBaseDataframe(-tmp,'')
 display(HTML(s2))
 
 ```
