@@ -39,8 +39,23 @@ url_base='http://www.wrc.com/service/sasCacheApi.php?route=events/{SASEVENTID}/{
 ```
 
 ```python
+url_meta='https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/queryMeta?t="{type}"&p={"n":"{n}","v":"{v}"}&maxdepth={depth}'
+#Base for querying structures with a type that return n/v structs
+#The query returns all structures that have the n/v element.
+#I haven't find a way to query on more than one parameter?
+#Querying on a lot of n/v pairs returns data that is hard to decipher
+#eg all the outings of a particular driver but you can't tell when?
+#It's like this data has been derived as a view from something relative to a particular rally/stage
+#  and then materialised.
+
+```
+
+```python
+#Pull an item by its unique ID from the WRC database.
+
 #Call a resource by ID
 wrcapi='https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/byId?id=%22{}%22' #requires resource ID
+#This can also accept: &maxdepth=3 etc
 ```
 
 ```python
@@ -56,6 +71,7 @@ stubs = { 'itinerary': 'rallies/{rallyId}/itinerary',
          'seasons':'seasons',
          'seasonDetails':'seasons/{seasonId}',
          # TO DO - for 2019, the following may need to be prefixed with seasons/ ?
+         # TO DO - WHERE DOES THE 4 COME FROM? It's the seasonId - see the wrc_livetiming.py file
          'championship':'seasons/4/championships/{championshipId}',
          'championship_results':'seasons/4/championships/{championshipId}/results',
         }
@@ -474,7 +490,6 @@ setup_views_q = '''
 
 ```
 #This is a literal approach and is DEPRECATED
-
 def getRally_URLs(results_main_url=None):
     if results_main_url is None:
         results_main_url='http://www.wrc.com/en/wrc/results/wales/stage-times/page/416-238---.html#'
@@ -501,6 +516,19 @@ def listRallies(display=True, **kwargs):
         print( ', '.join(rallyURLs.keys()) )
     else:
         return getRallyIDs
+```
+
+```python
+# NEW
+def _getDeepEventMetadata():
+    ''' Get event metadata as JSON data feed from WRC API. '''
+    url='https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/byType?t=%22Event%22&maxdepth=2'
+    eventmeta = requests.get(url).json()
+    
+    return eventmeta
+
+_getDeepEventMetadata()[:2]
+#This pulls in the extra stage info. But can we request it for a named event?
 ```
 
 ```python
@@ -531,6 +559,11 @@ getEventMetadata().head()
 ```
 
 ```python
+url='https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/byType?t=%22Event%22&maxdepth=1'
+eventmeta = requests.get(url).json()
+```
+
+```python
 def _getRallyIDs2(year=YEAR):
     em=getEventMetadata()
     em = em[em['year']==year][['name','sas-rallyid', 'sas-eventid', 'kmlfile', 'date-start']].reset_index(drop=True).dropna()
@@ -556,7 +589,7 @@ getEventID(2019)
 ```
 
 ```python
-name='france'
+name='chile'
 ```
 
 ```python
@@ -616,8 +649,8 @@ def set_rallyId2(rally, year, rallyIDs=None):
 
 ```python
 year = 2019
-name = 'france'
-dbname='france19.db'
+name = 'chile'
+dbname='chile19TEST.db'
 
 meta = set_rallyId2(name, year)
 meta
@@ -729,6 +762,10 @@ getItinerary(meta)
 ```
 
 ```python
+print(meta)
+```
+
+```python
 #a,b,c,d,e = getItinerary(meta)
 ```
 
@@ -827,7 +864,6 @@ def _stage_iterator(meta, stub, stage=None):
                     stages.append(_stage)
     else:
         stages = meta['stages']
-        
     #Get data for required stages
     for stageId in stages:
         #meta2['stageId']=stageId
@@ -1174,7 +1210,6 @@ def get_one(rally, stage, dbname='wrc19_test1.db', year=YEAR):
     conn = sqlite3.connect(dbname)
     meta =  set_rallyId2(rally, year)
     getItinerary(meta) #to update meta
-    print(meta)
     save_rally(meta, conn, stage)
     
 def get_all(rally, dbname='wrc19_test1.db', year=YEAR):
@@ -1231,10 +1266,16 @@ os.environ["WRC_RESULTS_DBNAME"] = dbname
 os.environ["WRC_RESULTS_YEAR"] = str(year)
 ```
 
-```
+```python
 _meta=set_rallyId2(name, year)
 _,_,_,_s,_ = getItinerary(_meta)
 _meta
+```
+
+```python
+_metax={'rallyId': '97'}
+getItinerary(_metax)
+_metax
 ```
 
 ```python
@@ -1261,6 +1302,9 @@ _meta
 
 ```python
 getEventMetadata().columns
+
+# TO DO - get POI list?
+#POI list seems to have crude co-ords for stages, service park etc
 ```
 
 ```python
@@ -1309,6 +1353,263 @@ dbname
 ```
 
 ```python
+zz = getEventMetadata()
+#Get the event
+zz[zz['sas-eventid']=='83'].to_dict()
+#top is like
+'''
+{'_id': 'd7e7150b-a6e6-4bab-bb22-6009a3c30f27',
+ 'name': 'Rally Chile',
+ 'type': 'Event',
+''''''
+```
+
+```
+#zz = getEventMetadata()
+#Get the event
+#zz[zz['sas-eventid']=='83'].to_dict()
+
+{'_id': {70: 'd7e7150b-a6e6-4bab-bb22-6009a3c30f27'},
+ 'availability': {70: 'now'},
+ 'date-finish': {70: Timestamp('2019-05-12 00:00:00')},
+ 'date-start': {70: Timestamp('2019-05-10 00:00:00')},
+ 'gallery': {70: nan},
+ 'hasdata': {70: nan},
+ 'hasvideos': {70: 'true'},
+ 'id': {70: nan},
+ 'info-based': {70: 'Concepcion'},
+ 'info-categories': {70: nan},
+ 'info-date': {70: '10 - 12 May 19'},
+ 'info-flag': {70: 'chi'},
+ 'info-surface': {70: ''},
+ 'info-website': {70: ''},
+ 'kmlfile': {70: 'chile_2019'},
+ 'logo': {70: 'images/chile_2019.png'},
+ 'name': {70: 'Rally Chile'},
+ 'org-website': {70: nan},
+ 'poi-Klo im Wald': {70: nan},
+ 'poilistid': {70: '85ed36a7-c153-46c9-b660-dbd303e87523'},
+ 'position': {70: '-73.079650, -36.768969'},
+ 'rosterid': {70: '128e2169-ddf7-4c06-a2e1-b904626f0e37'},
+ 'sas-eventid': {70: '83'},
+ 'sas-itineraryid': {70: '168'},
+ 'sas-rallyid': {70: '99'},
+ 'sas-trackingid': {70: '2787'},
+ 'sitid': {70: '83'},
+ 'testid': {70: nan},
+ 'thumbnail': {70: nan},
+ 'time-zone': {70: nan},
+ 'tzoffset': {70: '-18000000'},
+ 'year': {70: 2019}}
+```
+
+```python
+# NEW
+#top _id eg d7e7150b-a6e6-4bab-bb22-6009a3c30f27
+#We pul this automatically with the deep itinerary; can we get it more narrowly?
+#THe depth=2 is required - it gives us the stage details
+aa='https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/byId?id=%22d7e7150b-a6e6-4bab-bb22-6009a3c30f27%22&maxdepth=2'
+#BEtter as 
+aa='https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/queryMeta?t="Session"&p={"n":"sas-stageid","v":"1119"}&maxdepth=2'
+#The max_depth 2 gives the WRC drivers
+#useful stage info is in _dchildren
+requests.get(aa).json()
+```
+
+```python
+
+```
+
+In the `_dchildren` the top is like:
+
+# ```
+'_id': '95032ad3-e30f-4108-831c-6e4376b5b82f',
+   'name': 'SS2',
+   'type': 'Session',
+# ```
+
+```python
+stage_example = requests.get(aa).json()['_dchildren']
+sa = pd.DataFrame(stage_example)
+sa.head()
+```
+
+```python
+items={}
+for i in sa['_meta'].iloc[0]:
+    items.update(nvToDict(i))
+items
+```
+
+```python
+def iter_nv(d):
+    items = {}
+    for i in d:
+        items.update(nvToDict(i))
+    return items
+
+pd.DataFrame(sa.apply(lambda x: iter_nv(x['_meta']), axis=1).to_list())
+#The status of this looks to be very dodgy! Not updated / live data...
+#But it gives us a really handy way in to the start time and kml track
+```
+
+NEW
+There is a much easier way to the data:
+
+https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/queryMeta?t=%22Session%22&p=%7B%22n%22%3A%22date%22%2C%22v%22%3A%222019%2F05%2F11%22%7D&maxdepth=1
+
+https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/queryMeta?t="Session"&p={"n":"date","v":"2019/05/11"}&maxdepth=1
+
+So we can start to build up an arbitrary query?
+
+eg does this work?
+
+https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/queryMeta?t="Session"&p={"n":"sas-stageid","v":"1119"}&maxdepth=1
+Yes...
+
+
+And another..
+
+https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/queryMeta?t=%22Driver%22&p=%7B%22n%22:%22id%22,%22v%22:%2225%22%7D&maxdepth=1
+
+https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/byType?t=%22Team%22&maxdepth=2
+
+Is there a season or championship type??
+
+
+And another:
+    
+https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/byType?t=%22Roster%22&maxdepth=2
+
+https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/queryMeta?t=%22RosterEntry%22&p=%7B%22n%22:%22fiasn%22,%22v%22:%2266%22%7D&maxdepth=2
+
+
+Can query on a driver but the records in the response are hard to associate with a year? 
+https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/queryMeta?t="Car"&p={"n":"driverid","v":"25"}&maxdepth=1
+
+
+THis:
+https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/queryMeta?t="Session"&p={"n":"sas-stageid","v":"1119"}&maxdepth=2
+at depth 2 seems to give details of the WRC and WRC Pro results
+At depth 3 we get the entry with a start time
+
+
+https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/queryMeta?t="Entry"&p={"n":"time","v":"05/10/2019 08:12:00"}&maxdepth=2
+
+Query on an entry and this goes back in time - lots of historical telemetry?
+https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/queryMeta?t="Entry"&p={"n":"nr","v":"1"}&maxdepth=1
+
+So if we can start to identify the 'type' we can query into it?
+
+eg 
+https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/byType?t=%22Event%22&maxdepth=2
+# ```
+'_meta': [{'n': 'id', 'v': 'neste-oil-rally-finland'},
+   {'n': 'date-start', 'v': '2015-07-30'},
+   {'n': 'date-finish', 'v': '2015-08-02'},
+   {'n': 'name', 'v': 'Neste Oil Rally Finland'},
+   {'n': 'time-zone', 'v': 'Helsinki'},
+   {'n': 'info-flag', 'v': 'fin'},
+   {'n': 'info-surface', 'v': 'Gravel'},
+   {'n': 'info-date', 'v': '30 Jul - 02 Aug 15'},
+   {'n': 'info-categories', 'v': 'WRC, WRC-2, WRC-3, JWRC'},
+   {'n': 'info-based', 'v': 'Jyväskylä'},
+   {'n': 'info-website', 'v': 'www.nesteoilrallyfinland.fi'},
+   {'n': 'sitid', 'v': '143'},
+   {'n': 'logo', 'v': 'images/finland_2015.png'},
+   {'n': 'position', 'v': '25.747218,62.245316'},
+   {'n': 'kmlfile', 'v': 'finland_2015'},
+   {'n': 'rosterid', 'v': '94d5d08f-b9dc-44b4-be66-66d206ec5e87'},
+   {'n': 'hasvideos', 'v': 'true'},
+   {'n': 'availability', 'v': 'now'}],
+# ```
+
+so 
+https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/queryMeta?t="Event"&p={"n":"info-surface","v":"Gravel"}&maxdepth=1
+
+Looks like we can only pass one parameter though
+
+```
+[{'_id': '9ec22343-5f4c-45c7-a4de-f6926402a7a4',
+  'name': 'SS1',
+  'type': 'Session',
+  '_meta': [{'n': 'name', 'v': 'SS1'},
+   {'n': 'nr', 'v': '1119'},
+   {'n': 'start-time-control', 'v': 'SS1'},
+   {'n': 'location', 'v': 'El Pinar'},
+   {'n': 'distance', 'v': '17.11'},
+   {'n': 'status', 'v': 'ToRun'},
+   {'n': 'date', 'v': '2019/05/10'},
+   {'n': 'firstCar', 'v': '08:00'},
+   {'n': 'sas-controlid', 'v': '4762'},
+   {'n': 'sas-stageid', 'v': '1119'},
+   {'n': 'day', 'v': '1'},
+   {'n': 'section', 'v': '1'},
+   {'n': 'kmlfile', 'v': 'chile_2019'},
+   {'n': 'kmltrack', 'v': 'SS01 El Pinar'}],
+  'parentid': None,
+  '_children': ['9ec22343-5f4c-45c7-a4de-f6926402a7a4_595806a1-50e8-4438-86e5-d5c210c19f6b',
+   '9ec22343-5f4c-45c7-a4de-f6926402a7a4_6bc91312-a467-4f36-8bf7-d377c1968591',
+   '9ec22343-5f4c-45c7-a4de-f6926402a7a4_950022ae-5858-4cf2-81c2-7b4c85a8cbb7',
+   '9ec22343-5f4c-45c7-a4de-f6926402a7a4_f9a8f129-8536-4702-8a5c-7ed184d0895e',
+   '9ec22343-5f4c-45c7-a4de-f6926402a7a4_07b7b369-7eaf-40e4-90b2-23c352fba5bb',
+   '9ec22343-5f4c-45c7-a4de-f6926402a7a4_875b838e-8ba6-4c03-a060-fa4678b1d4ef',
+   '9ec22343-5f4c-45c7-a4de-f6926402a7a4_37ab2f1a-0551-4891-a05e-4f9aeef476c6',
+   '9ec22343-5f4c-45c7-a4de-f6926402a7a4_eab4f149-0070-4a93-b06f-db7c8df5c248',
+   '9ec22343-5f4c-45c7-a4de-f6926402a7a4_59e5e020-a8f6-4b7f-909f-787c5701c761',
+   '9ec22343-5f4c-45c7-a4de-f6926402a7a4_951a444a-7a39-42e9-8080-141d6f64ddad',
+   '9ec22343-5f4c-45c7-a4de-f6926402a7a4_1e4e2ed0-bd71-430d-ae1a-2570b915a95a'],
+  '_dchildren': []},
+ {'_id': '95032ad3-e30f-4108-831c-6e4376b5b82f',
+  'name': 'SS2',
+  'type': 'Session',
+  '_meta': [{'n': 'name', 'v': 'SS2'},
+   {'n': 'nr', 'v': '1120'},
+   {'n': 'start-time-control', 'v': 'SS2'},
+   {'n': 'location', 'v': 'El Puma 1'},
+   {'n': 'distance', 'v': '30.72'},
+```
+
+### Query Grammar
+
+Start to try to work out the grammar.
+
+#### ByType
+
+Of the form:  `https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/byType?t=%22TYPE%22&maxdepth=2`
+
+A `Season` is made up of `Event`s.
+
+(An `Event` includes a `rosterid` that can be used to reference a `Roster`.)
+
+An `Event` has `Session`s.
+
+A `Session` has `Entry`s.
+
+An `Entry` has a `Car` and `Clip`s.
+
+(There is also a `Car_2016` type for the 2016 season.)
+
+A `Roster` has `RosterEntry`s.
+
+A `RosterEntry` is made from a `Car`.
+
+A `Car` has two `Driver`s (one is the driver, the other the co-driver) and a `Team`.
+
+
+
+
+#### QueryMeta
+
+We can be more focussed with queries into an object class narrowed down by an n.v pair using queries of the form: `https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/queryMeta?t="TYPE"&p={"n":"NOUN","v":"VALUE"}&maxdepth=1`
+
+
+
+
+
+## Else...
+
+```python
 getEventMetadata()
 ```
 
@@ -1343,16 +1644,24 @@ for name in listRallies2():
 ```
 
 ```python
+dbname
+```
+
+```python
 #PK issues?
 #upsert issues? Pandas doesn't support upsert
 
 #Use Simon Willison's sqlite utils, which has upsert.
-get_one(name, 'SS4', dbname=dbname, year=year)
+get_one(name, 'SS6', dbname=dbname, year=year)
 ```
 
 ```python
 meta =  set_rallyId2(name, year)
 meta
+```
+
+```python
+dbname
 ```
 
 ```python
@@ -1420,6 +1729,11 @@ timeify(pd.read_sql(q,conn)).dtypes
 
 #The diffFirst etc are not time objects - they;re strings; cast to timedelta? DOes SQLIte do timedelta?
 #The cast is easy in Python: pd.to_timedelta('00:04:45.5000000')
+```
+
+```python
+q="SELECT DISTINCT(stageId) FROM stage_times_overall ;"
+pd.read_sql(q,conn)
 ```
 
 ```python
