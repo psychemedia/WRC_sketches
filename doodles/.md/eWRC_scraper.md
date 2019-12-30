@@ -4,8 +4,8 @@ jupyter:
     text_representation:
       extension: .md
       format_name: markdown
-      format_version: '1.1'
-      jupytext_version: 1.2.1
+      format_version: '1.2'
+      jupytext_version: 1.3.0rc1
   kernelspec:
     display_name: Python 3
     language: python
@@ -60,13 +60,14 @@ soup = BeautifulSoup(html, 'lxml') # Parse the HTML as a string
 tables = soup.find_all('table')
 #tables = LH.fromstring(html).xpath('//table')
 df_rally_overall = pd.read_html('<html><body>{}</body></html>'.format(tables[0]))[0]
-df_rally_overall['badge'] = [img.find('img')['src'] for img in tables[0].findAll("td", {"class": "final-results-icon"}) ]
+#df_rally_overall['badge'] = [img.find('img')['src'] for img in tables[0].findAll("td", {"class": "final-results-icon"}) ]
 df_rally_overall.dropna(how='all', axis=1, inplace=True)
 df_rally_overall.head()
 ```
 
 ```python
-df_rally_overall.columns=['Pos','CarNum','driverNav','ModelReg','Class', 'Time','GapDiff', 'Speedkm', 'badge']
+#df_rally_overall.columns=['Pos','CarNum','driverNav','ModelReg','Class', 'Time','GapDiff', 'Speedkm', 'badge']
+df_rally_overall.columns=['Pos','CarNum','driverNav','ModelReg','Class', 'Time','GapDiff', 'Speedkm']
 ```
 
 ```python
@@ -89,7 +90,7 @@ df_rally_overall['Class'].unique()
 ```
 
 ```python
-df_rally_overall['Pos'] = df_rally_overall['Pos'].str.extract(r'(.*)\.')
+df_rally_overall['Pos'] = df_rally_overall['Pos'].astype(str).str.extract(r'(.*)\.')
 df_rally_overall['Pos'] = df_rally_overall['Pos'].astype(int)
 df_rally_overall.dtypes
 ```
@@ -133,7 +134,7 @@ set(df_rally_overall['Driver'])-set(_entries['Driver Reverse'])
 
 Get results by stage.
 
-The stage results pages returns two tables side by side (the stage result and the overall result) and a third retirements table.
+The stage results pages returns two tables side by side (the stage result and the overall result) potentially along with retirements and penalties tables.
 
 ```python
 #Stage results
@@ -170,7 +171,7 @@ The stages are linked relative to the website root / domain.
 base_url = 'https://www.ewrc-results.com'
 ```
 
-Scrape the page into some bueatiful soup...:
+Scrape the page into some beautiful soup...:
 
 ```python
 soup = soupify('{}{}'.format(base_url, links[0]))
@@ -240,7 +241,7 @@ I'm not sure what the two elements in the `Speedkm` column are. The first appear
 We can split those columns out on a regular expression.
 
 ```python
-df['Speedkm'].str.extract(r'(?P<Speed>[^.]*\.[\d])(?P<unknown>.*)').head()
+df['Speedkm'].str.extract(r'(?P<Speed>[^.]*\.[\d])(?P<Dist>.*)').head()
 ```
 
 ```python
@@ -255,7 +256,7 @@ def cleanString(s):
     
 ```
 
-The `Desc` column is scraped as `Driver Name - Navigator NameCar Model`. We can either parse these out with a camelcase pattern matcher, or perhaps more easily just scrape the original HTML using the pattern we developed abobve to scrape glad image URIs.
+The `Desc` column is scraped as `Driver Name - Navigator NameCar Model`. We can either parse these out with a camelcase pattern matcher, or perhaps more easily just scrape the original HTML using the pattern we developed above to scrape glad image URIs.
 
 ```python
 rows=[]
@@ -283,17 +284,93 @@ The entry list provides the basis for a whole set of metadata.
 
 ```python
 entrylist_url = 'https://www.ewrc-results.com/entries/54762-corbeau-seats-rally-tendring-clacton-2019/'
+entrylist_url = "https://www.ewrc-results.com/entries/42870-rallye-automobile-de-monte-carlo-2018/"
 soup = soupify(entrylist_url)
 ```
 
 ```python
 entrylist_table = soup.find('div',{'class':'startlist'}).find('table')
 df_entrylist = dfify(entrylist_table)
-df_entrylist.columns = ['CarNum', 'DriverName','CoDriverName','Team','Car','Class','Meta']
+df_entrylist
+```
+
+```python
+base_cols = ['CarNum', 'DriverName','CoDriverName','Team','Car','Class']
+for i in range(len(df_entrylist.columns) - len(base_cols)):
+    base_cols.append(f'Meta_{i}')
+df_entrylist.columns = base_cols
 df_entrylist['carNum'] = df_entrylist['CarNum'].str.extract(r'#(.*)')
 df_entrylist.head()
 
 #TO DO - flag, driverId
+```
+
+For WRC at least, we can also get the starting order for each leg.
+
+
+We have starting orders for legs if there is an `<h2>` element containing `Starting order`:
+
+```python
+if soup.find('h2', text='Starting order'):
+    print('Starting order available...')
+```
+
+## Itinerary
+
+For WRC at least, the itinerary breaks out the legs, which is useful when we are looking at statistics that relate to starting order / road order (RO) as obtained from the entry list.
+
+```python
+itinerary_url = 'https://www.ewrc-results.com/timetable/42870-rallye-automobile-de-monte-carlo-2018/itinerary_url'
+#itinerary_url = 'https://www.ewrc-results.com/timetable/54762-corbeau-seats-rally-tendring-clacton-2019/'
+```
+
+```python
+soup = soupify(itinerary_url)
+```
+
+```python
+event_dist = soup.find('td',text='Event total').parent.find_all('td')[-1].text
+event_dist
+```
+
+```python
+from numpy import nan
+
+itinerary_df = dfify( soup.find('div', {'class':'timetable'}).find('table') )
+itinerary_df.columns = ['Stage','Name', 'Distance', 'Date', 'Time']
+itinerary_df['Leg'] = [nan if 'leg' not in str(x) else str(x).replace('. leg','') for x in itinerary_df['Stage']]
+itinerary_df['Leg'] = itinerary_df['Leg'].fillna(method='ffill')
+itinerary_df['Date'] = itinerary_df['Date'].fillna(method='ffill')
+
+itinerary_leg_totals = itinerary_df[itinerary_df['Name'].str.contains("Leg total")][['Leg', 'Distance']].reset_index(drop=True)
+
+full_itinerary_df = itinerary_df[~itinerary_df['Name'].str.contains(". leg")]
+full_itinerary_df = full_itinerary_df[~full_itinerary_df['Date'].str.contains(" km")]
+full_itinerary_df = full_itinerary_df.fillna(method='bfill', axis=1)
+
+#Legs may not be identified but we may want to identify services
+full_itinerary_df['Service'] = [ 'Service' in i for i in full_itinerary_df['Distance'] ]
+full_itinerary_df['Service_Num'] = full_itinerary_df['Service'].cumsum()
+full_itinerary_df.reset_index(drop=True, inplace=True)
+itinerary_df = full_itinerary_df[~full_itinerary_df['Service']].reset_index(drop=True)
+
+itinerary_df
+```
+
+We can also add in the day number  by counting separate dates.
+
+```python
+# Add in event day number
+
+# TO DO
+```
+
+```python
+full_itinerary_df
+```
+
+```python
+itinerary_leg_totals
 ```
 
 ## All in One - Stage Times
@@ -342,7 +419,7 @@ carNum = carNumMatch(groups[_pos][NAME_SUBGROUP]).group('carNum')
 carNum
 ```
 
-```python
+```python run_control={"marked": false}
 #Extract the car model
 carModelMatch = lambda txt:  re.search('</a>\s*(?P<carModel>.*)</div>', cleanString(txt))
 carModel = carModelMatch(groups[_pos][NAME_SUBGROUP]).group('carModel')
@@ -503,11 +580,11 @@ from dakar_utils import moveColumn, sparkline2, sparklineStep, moreStyleDriverSp
 
 ```
 
-```python
+<!-- #raw -->
 import notebookimport
 wo = __import__("WRC Overall")
 
-```
+<!-- #endraw -->
 
 ```python
 import io
@@ -787,9 +864,20 @@ display(HTML(s2))
 ```
 
 ```python
+## gapBar looks simple? From wo:
+def gapBar(df):
+    ''' Bar chart showing rebased gap at each stage. '''
+    col='Gap'
+    df[col] = df[[c for c in df.columns if c.startswith('SS_') and c.endswith('_overall')]].values.tolist()
+    df[col] = df[col].apply(lambda x: [-y for y in x])
+    df[col] = df[col].apply(sparkline2, typ='bar', dot=False)
+    return df
+```
+
+```python
 # Gap: bar chart showing gap relative to rebased entry
 # This is just taken from the overall in the table
-tmp = wo.gapBar(tmp)
+tmp = gapBar(tmp)
 
 s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
 display(HTML(s2))
@@ -888,7 +976,7 @@ def rally_report(codes, rebase):
     # Gap: bar chart showing gap relative to rebased entry
     # This is just taken from the overall in the table
     #The gap should be ignored for the rebased driver?
-    tmp = wo.gapBar(tmp)
+    tmp = gapBar(tmp)
     print('v',tmp[-1:].index)
 
     moveColumn(tmp, 'stageWinnerGap', right_of='overallPosition')
@@ -957,7 +1045,7 @@ _
 ## Widgets Example
 
 
-Full results should cope with retirements becuase they affect stage rankings?
+Full results should cope with retirements because they affect stage rankings?
 
 ```javascript
 IPython.OutputArea.auto_scroll_threshold = 9999;
