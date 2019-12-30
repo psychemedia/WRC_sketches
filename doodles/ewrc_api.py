@@ -137,7 +137,10 @@ stage_retirements
 # +
 from parse import parse
 
-def get_stage_times(stage_times_url):
+def get_stage_times(stub):
+    url='https://www.ewrc-results.com/times/{stub}/'.format(stub=stub)
+
+    
     soup = soupify(url)
     
     times = soup.find('div',{'class':'times'}).findChildren('div' , recursive=False)
@@ -230,15 +233,44 @@ def get_stage_times(stage_times_url):
 
     return df_overall, df_stages, df_overall_pos
 
-# -
 
+# +
 url='https://www.ewrc-results.com/times/54762-corbeau-seats-rally-tendring-clacton-2019/'
 #url='https://www.ewrc-results.com/times/42870-rallye-automobile-de-monte-carlo-2018/'
-df_overall, df_stages, df_overall_pos = get_stage_times(url)
+
+stub = '42870-rallye-automobile-de-monte-carlo-2018'
+df_overall, df_stages, df_overall_pos = get_stage_times(stub)
+# -
 
 display(df_overall)
 display(df_stages)
 display(df_overall_pos)
+
+
+# Create a class to that can be used to gran all the results for a particular rally, as required.
+#
+# We fudge the definition of class functions so that we can separately define and functions in a standalione way. This is probably *not good practice*...!
+
+class EWRC:
+    """Class for eWRC data for a particular rally."""
+
+    def __init__(self, stub):
+        self.stub = stub
+        
+        self.df_overall = None
+        self.df_stages = None
+        self.df_overall_pos = None
+    
+    def get_stage_times(self):
+        if self.df_overall is None or self.df_stages is None or self.df_overall_pos is None:
+            self.df_overall, self.df_stages, self.df_overall_pos = get_stage_times(self.stub)
+
+        return self.df_overall, self.df_stages, self.df_overall_pos
+
+
+ewrc=EWRC(stub)
+
+ewrc.get_stage_times()
 
 # ## Itinerary
 
