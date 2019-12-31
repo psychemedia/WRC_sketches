@@ -165,6 +165,30 @@ for li in soup.find_all('ul')[2].find_all('li'):
 links
 ```
 
+```python
+details = soup.find('h4').text
+details
+```
+
+```python
+#parse package (r1chardj0n3s/parse).
+#!pip3 install parse
+```
+
+```python
+from parse import parse
+
+pattern = 'SS{stage} {name} - {dist:f} km - {datetime}'
+parse_result = parse(pattern, details)
+
+stage_num = f"SS{parse_result['stage']}"
+stage_name = parse_result['name']
+stage_dist =  parse_result['dist']
+stage_datetime = parse_result['datetime']
+
+stage_num, stage_name, stage_dist, stage_datetime
+```
+
 The stages are linked relative to the website root / domain.
 
 ```python
@@ -177,15 +201,6 @@ Scrape the page into some beautiful soup...:
 soup = soupify('{}{}'.format(base_url, links[0]))
 ```
 
-Extract the tables:
-
-```python
-tables = soup.find_all('table')
-stage_result = tables[0]
-stage_overall = tables[1]
-stage_retirements = tables[2]
-```
-
 A little helper to scrape tables in dataframes...
 
 ```python
@@ -194,6 +209,16 @@ def dfify(table):
     df = df.dropna(axis=1, how='all').dropna(axis=0, how='all')
     return df
 ```
+
+Extract the tables:
+
+```python
+tables = soup.find_all('table')
+stage_result = tables[0]
+stage_overall = tables[1]
+```
+
+### Stage Result...
 
 ```python
 df = dfify(stage_result)
@@ -256,7 +281,7 @@ def cleanString(s):
     
 ```
 
-The `Desc` column is scraped as `Driver Name - Navigator NameCar Model`. We can either parse these out with a camelcase pattern matcher, or perhaps more easily just scrape the original HTML using the pattern we developed above to scrape glad image URIs.
+The `Desc` column is scraped as `Driver Name - Navigator NameCar Model`. We can either parse these out with a camelcase pattern matcher, or perhaps more easily just scrape the original HTML using the pattern we developed above.
 
 ```python
 rows=[]
@@ -276,6 +301,56 @@ df.head()
 
 ```python
 print(df['CarNum'].tolist())
+```
+
+### Stage Overall...
+
+```python
+df_overall = dfify(stage_overall)
+
+cols = ['PosChange', 'CarNum', 'Desc','Class', 'Time', 'GapDiff', 'Speedkm' ]
+df_overall.columns = cols
+
+df_overall[['Pos','Change']] = df_overall['PosChange'].str.extract(r'(?P<Pos>[\d]*)\.\s?(?P<Change>.*)?')
+
+df_overall['GapDiff'].fillna('+0+0').str.strip('+').str.split('+',expand=True).rename(columns={0:'Gap', 1:'Diff'})
+df_overall[['Gap','Diff']] = diffgapsplitter(df_overall['GapDiff'])
+df_overall[['Speed','Dist']] = df_overall['Speedkm'].str.extract(r'(?P<Speed>[^.]*\.[\d])(?P<Dist>.*)')
+
+df_overall
+```
+
+### Penalties...
+
+```python
+cols = ['CarNum', 'driverNav', 'Model', 'Status']
+extra_cols = ['Driver', 'CoDriver', 'Stage']
+retirements = pd.DataFrame(columns=cols+extra_cols)
+retired = soup.find('div',{'class':'retired-inc'})
+if retired:
+    retirements = dfify(retired.find('table'))
+    retirements.columns = cols
+    retirements[['Driver','CoDriver']] = retirements['driverNav'].str.extract(r'(?P<Driver>.*)\s+-\s+(?P<CoDriver>.*)')
+    retirements['Stage'] = stage_num
+retirements
+```
+
+### Retirements...
+
+```python
+cols = ['CarNum', 'driverNav', 'Model', 'PenReason']
+extra_cols = ['Driver', 'CoDriver', 'Stage']
+penalties = pd.DataFrame(columns=cols+extra_cols)
+
+penalty = soup.find('div',{'class':'penalty-inc'})
+if penalty:
+    penalties = dfify(penalty.find('table'))
+    penalties.columns = cols
+    penalties[['Driver','CoDriver']] = penalties['driverNav'].str.extract(r'(?P<Driver>.*)\s+-\s+(?P<CoDriver>.*)')
+    penalties[['Time','Reason']] = penalties['PenReason'].str.extract(r'(?P<Time>[^\s]*)\s+(?P<Reason>.*)')
+    penalties['Stage'] = stage_num
+    
+penalties
 ```
 
 ## Entry List
@@ -448,11 +523,6 @@ position
 for c in groups[_pos][TIME_SUBGROUP].findAll('div')[:-1]:
     #Last row is distinct
     print(cleanString(c))
-```
-
-```python
-#parse package (r1chardj0n3s/parse).
-#!pip3 install parse
 ```
 
 ```python
