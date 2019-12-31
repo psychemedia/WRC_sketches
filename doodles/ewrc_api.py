@@ -167,7 +167,7 @@ def get_stage_results(stub):
     df_stage_overall['StageName'] = stage_name
     df_stage_overall['StageDist'] = stage_dist
     
-    df_stage_overall[['Pos','Change']] = df_stage_overall['PosChange'].str.extract(r'(?P<Pos>[\d]*)\.\s?(?P<Change>.*)?')
+    df_stage_overall[['Pos','Change']] = df_stage_overall['PosChange'].astype(str).str.extract(r'(?P<Pos>[\d]*)\.\s?(?P<Change>.*)?')
     df_stage_overall['GapDiff'].fillna('+0+0').str.strip('+').str.split('+',expand=True).rename(columns={0:'Gap', 1:'Diff'})
     df_stage_overall[['Gap','Diff']] = diffgapsplitter(df_stage_overall['GapDiff'])
     df_stage_overall[['Speed','Dist']] = df_stage_overall['Speedkm'].str.extract(r'(?P<Speed>[^.]*\.[\d])(?P<Dist>.*)')
@@ -446,23 +446,35 @@ class EWRC:
     def get_stage_results(self, stage=None):
         #for now, just return what we have with stage as None
         # Could maybe change that to get everything?
-        if stage and stage not in self.df_stage_result['Stage'].unique():
+        stages = stage if isinstance(stage,list) else [stage]
+        if stages:
             links = self.get_stage_result_links()
-            if stage in links:
-                df_stage_result, df_stage_overall, df_stage_retirements, \
-                    df_stage_penalties = get_stage_results(links[stage])
-                self.df_stage_result = self.df_stage_result.append(df_stage_result, sort=False).reset_index(drop=True)
-                self.df_stage_overall = self.df_stage_overall.append(df_stage_overall, sort=False).reset_index(drop=True)
-                self.df_stage_retirements = self.df_stage_retirements.append(df_stage_retirements, sort=False).reset_index(drop=True)
-                self.df_stage_penalties = self.df_stage_penalties.append(df_stage_penalties, sort=False).reset_index(drop=True)
-            
+            if 'all' in stages:
+                stages = [k for k in links.keys() if 'leg' not in k]
+            for stage in stages:
+                if stage not in self.df_stage_result['Stage'].unique() and stage in links:
+                    df_stage_result, df_stage_overall, df_stage_retirements, \
+                        df_stage_penalties = get_stage_results(links[stage])
+                    self.df_stage_result = self.df_stage_result.append(df_stage_result, sort=False).reset_index(drop=True)
+                    self.df_stage_overall = self.df_stage_overall.append(df_stage_overall, sort=False).reset_index(drop=True)
+                    self.df_stage_retirements = self.df_stage_retirements.append(df_stage_retirements, sort=False).reset_index(drop=True)
+                    self.df_stage_penalties = self.df_stage_penalties.append(df_stage_penalties, sort=False).reset_index(drop=True)
+        
+        if stages:
+            return self.df_stage_result[self.df_stage_result['Stage'].isin(stages)], \
+                    self.df_stage_overall[self.df_stage_overall['Stage'].isin(stages)], \
+                    self.df_stage_retirements[self.df_stage_retirements['Stage'].isin(stages)], \
+                    self.df_stage_penalties[self.df_stage_penalties['Stage'].isin(stages)]
+        
         return self.df_stage_result, self.df_stage_overall, \
                 self.df_stage_retirements, self.df_stage_penalties
 
 
 ewrc=EWRC(rally_stub)
 
-ewrc.get_stage_results('SS4')
+ewrc.get_stage_results()
+
+ewrc.get_stage_results('all')
 
 ewrc.get_stage_result_links()
 
@@ -471,5 +483,11 @@ ewrc.get_stage_times()
 ewrc.get_itinerary()
 
 ewrc.get_entry_list()
+
+ewrc=EWRC('54464-corsica-linea-tour-de-corse-2019')
+
+ewrc.get_entry_list()
+
+ewrc.get_stage_results('SS2')
 
 
