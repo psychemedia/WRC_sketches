@@ -65,9 +65,12 @@ def diffgapsplitter(col):
 base_url = 'https://www.ewrc-results.com'
 
 
-def get_stage_result_links(rally_stage_results_url):
+def get_stage_result_links(stub):
     #If navigation remains constant, items are in third list
-    links=[]
+    
+    rally_stage_results_url='https://www.ewrc-results.com/results/{stub}/'.format(stub=stub)
+    
+    links={}
 
     soup = soupify(rally_stage_results_url)
     for li in soup.find_all('ul')[2].find_all('li'):
@@ -77,31 +80,66 @@ def get_stage_result_links(rally_stage_results_url):
         if 'class' not in li.attrs:
             a = li.find('a')
             if 'href' in a.attrs:
-                links.append(a['href'])
+                #links.append(a['href'])
+                links[f'SS{a.text}'] = a['href']
                 
     return links
 
 
-# +
-url='https://www.ewrc-results.com/results/54762-corbeau-seats-rally-tendring-clacton-2019/'
+#url='https://www.ewrc-results.com/results/54762-corbeau-seats-rally-tendring-clacton-2019/'
+rally_stub = '54762-corbeau-seats-rally-tendring-clacton-2019'
+tmp = get_stage_result_links(rally_stub)
+tmp
 
-get_stage_result_links(url)
+# +
+stage_result_cols = ['Pos', 'CarNum', 'Desc', 'Class', 'Time', 'GapDiff', 'Speedkm', 'Stage',
+       'StageName', 'StageDist', 'Gap', 'Diff', 'Speed', 'Dist', 'entryId',
+       'model', 'navigator', 'PosNum']
+
+stage_overall_cols = ['PosChange', 'CarNum', 'Desc', 'Class', 'Time', 'GapDiff', 'Speedkm',
+       'Stage', 'StageName', 'StageDist', 'Pos', 'Change', 'Gap', 'Diff',
+       'Speed', 'Dist']
+
+retirement_cols = ['CarNum', 'driverNav', 'Model', 'Status']
+retirement_extra_cols = ['Driver', 'CoDriver', 'Stage']
+
+penalty_cols = ['CarNum', 'driverNav', 'Model', 'PenReason']
+penalty_extra_cols = ['Driver', 'CoDriver', 'Stage', 'Time','Reason']
+ 
 
 # +
 from numpy import nan
 
+from parse import parse   
+    
 def get_stage_results(stub):
     soup = soupify('{}{}'.format(base_url, stub))
+    
+    pattern = 'SS{stage} {name} - {dist:f} km - {datetime}'
+    details = soup.find('h4').text
+    parse_result = parse(pattern, details)
+
+    stage_num = f"SS{parse_result['stage']}"
+    stage_name = parse_result['name']
+    stage_dist =  parse_result['dist']
+    stage_datetime = parse_result['datetime']
+
     tables = soup.find_all('table')
     stage_result = tables[0]
     stage_overall = tables[1]
-    stage_retirements = tables[2]
     
-    df = dfify(stage_result)
-    df.columns=['Pos','CarNum','Desc','Class', 'Time','GapDiff', 'Speedkm']
-    df['GapDiff'].fillna('+0+0').str.strip('+').str.split('+',expand=True).rename(columns={0:'Gap', 1:'Diff'}).head()
-    df[['Gap','Diff']] = diffgapsplitter(df['GapDiff'])
-    df[['Speed','Dist']] = df['Speedkm'].str.extract(r'(?P<Speed>[^.]*\.[\d])(?P<Dist>.*)').head()
+    
+    # Stage Result
+    df_stage_result = dfify(stage_result)
+    df_stage_result.columns=['Pos','CarNum','Desc','Class', 'Time','GapDiff', 'Speedkm']
+    
+    df_stage_result['Stage'] = stage_num
+    df_stage_result['StageName'] = stage_name
+    df_stage_result['StageDist'] = stage_dist
+    
+    df_stage_result['GapDiff'].fillna('+0+0').str.strip('+').str.split('+',expand=True).rename(columns={0:'Gap', 1:'Diff'})
+    df_stage_result[['Gap','Diff']] = diffgapsplitter(df_stage_result['GapDiff'])
+    df_stage_result[['Speed','Dist']] = df_stage_result['Speedkm'].str.extract(r'(?P<Speed>[^.]*\.[\d])(?P<Dist>.*)')
     
     rows=[]
     for d in stage_result.findAll("td", {"class": "stage-results-drivers"}):
@@ -114,25 +152,62 @@ def get_stage_results(stub):
                       'driver':cleanString(driverNav[0]),
                       'navigator':cleanString(driverNav[1])}) 
 
-    df[['driver','entryId','model','navigator']] = pd.DataFrame(rows)
+    df_stage_result[['driver','entryId','model','navigator']] = pd.DataFrame(rows)
     #Should we cast the Pos to a numeric too? Set = to na then ffill down?
-    df['PosNum'] = df['Pos'].replace('=',nan).astype(float).fillna(method='ffill').astype(int)
-    df.set_index('driver',drop=True, inplace=True)
+    df_stage_result['PosNum'] = df_stage_result['Pos'].replace('=',nan).astype(float).fillna(method='ffill').astype(int)
+    df_stage_result.set_index('driver',drop=True, inplace=True)
     
-    return df, stage_overall, stage_retirements
+    # Stage Overall
+    df_stage_overall = dfify(stage_overall)
 
+    cols = ['PosChange', 'CarNum', 'Desc','Class', 'Time', 'GapDiff', 'Speedkm' ]
+    df_stage_overall.columns = cols
 
+    df_stage_overall['Stage'] = stage_num
+    df_stage_overall['StageName'] = stage_name
+    df_stage_overall['StageDist'] = stage_dist
+    
+    df_stage_overall[['Pos','Change']] = df_stage_overall['PosChange'].str.extract(r'(?P<Pos>[\d]*)\.\s?(?P<Change>.*)?')
+    df_stage_overall['GapDiff'].fillna('+0+0').str.strip('+').str.split('+',expand=True).rename(columns={0:'Gap', 1:'Diff'})
+    df_stage_overall[['Gap','Diff']] = diffgapsplitter(df_stage_overall['GapDiff'])
+    df_stage_overall[['Speed','Dist']] = df_stage_overall['Speedkm'].str.extract(r'(?P<Speed>[^.]*\.[\d])(?P<Dist>.*)')
+
+    
+    # Retirements
+    df_stage_retirements = pd.DataFrame(columns=retirement_cols+retirement_extra_cols)
+    retired = soup.find('div',{'class':'retired-inc'})
+    if retired:
+        df_stage_retirements = dfify(retired.find('table'))
+        df_stage_retirements.columns = retirement_cols
+        df_stage_retirements[['Driver','CoDriver']] = df_stage_retirements['driverNav'].str.extract(r'(?P<Driver>.*)\s+-\s+(?P<CoDriver>.*)')
+        df_stage_retirements['Stage'] = stage_num
+    
+    # Penalties
+    df_stage_penalties = pd.DataFrame(columns=penalty_cols+penalty_extra_cols)
+
+    penalty = soup.find('div',{'class':'penalty-inc'})
+    if penalty:
+        df_stage_penalties = dfify(penalty.find('table'))
+        df_stage_penalties.columns = penalty_cols
+        df_stage_penalties[['Driver','CoDriver']] = df_stage_penalties['driverNav'].str.extract(r'(?P<Driver>.*)\s+-\s+(?P<CoDriver>.*)')
+        df_stage_penalties[['Time','Reason']] = df_stage_penalties['PenReason'].str.extract(r'(?P<Time>[^\s]*)\s+(?P<Reason>.*)')
+        df_stage_penalties['Stage'] = stage_num
+    
+    return df_stage_result, df_stage_overall, df_stage_retirements, df_stage_penalties
 # -
 
-stub = '/results/54762-corbeau-seats-rally-tendring-clacton-2019/'
-stub='/results/42870-rallye-automobile-de-monte-carlo-2018/'
-stage_result, stage_overall, stage_retirements = get_stage_results(stub)
+partial_stub = '/results/54762-corbeau-seats-rally-tendring-clacton-2019/'
+partial_stub='/results/42870-rallye-automobile-de-monte-carlo-2018/'
+#stub = tmp['SS3']
+stage_result, stage_overall, stage_retirements, stage_penalties = get_stage_results(partial_stub)
 
-stage_result
+stage_result.head()
 
 stage_overall
 
 stage_retirements
+
+stage_penalties
 
 # +
 from parse import parse
@@ -238,39 +313,13 @@ def get_stage_times(stub):
 url='https://www.ewrc-results.com/times/54762-corbeau-seats-rally-tendring-clacton-2019/'
 #url='https://www.ewrc-results.com/times/42870-rallye-automobile-de-monte-carlo-2018/'
 
-stub = '42870-rallye-automobile-de-monte-carlo-2018'
-df_overall, df_stages, df_overall_pos = get_stage_times(stub)
+rally_stub = '42870-rallye-automobile-de-monte-carlo-2018'
+df_overall, df_stages, df_overall_pos = get_stage_times(rally_stub)
 # -
 
 display(df_overall)
 display(df_stages)
 display(df_overall_pos)
-
-
-# Create a class to that can be used to gran all the results for a particular rally, as required.
-#
-# We fudge the definition of class functions so that we can separately define and functions in a standalione way. This is probably *not good practice*...!
-
-class EWRC:
-    """Class for eWRC data for a particular rally."""
-
-    def __init__(self, stub):
-        self.stub = stub
-        
-        self.df_overall = None
-        self.df_stages = None
-        self.df_overall_pos = None
-    
-    def get_stage_times(self):
-        if self.df_overall is None or self.df_stages is None or self.df_overall_pos is None:
-            self.df_overall, self.df_stages, self.df_overall_pos = get_stage_times(self.stub)
-
-        return self.df_overall, self.df_stages, self.df_overall_pos
-
-
-ewrc=EWRC(stub)
-
-ewrc.get_stage_times()
 
 # ## Itinerary
 
@@ -314,6 +363,113 @@ display(itinerary_leg_totals)
 display(itinerary_df)
 display(full_itinerary_df)
 
+# ## Entry List
+#
+# Get the entry list.
 
+entrylist_path = "https://www.ewrc-results.com/entries/{stub}/"
+
+
+def get_entry_list(stub):
+    entrylist_url = entrylist_path.format(stub=stub)
+    
+    soup = soupify(entrylist_url)
+    entrylist_table = soup.find('div',{'class':'startlist'}).find('table')
+    df_entrylist = dfify(entrylist_table)
+    
+    base_cols = ['CarNum', 'DriverName','CoDriverName','Team','Car','Class']
+    for i in range(len(df_entrylist.columns) - len(base_cols)):
+        base_cols.append(f'Meta_{i}')
+    df_entrylist.columns = base_cols
+    df_entrylist['carNum'] = df_entrylist['CarNum'].str.extract(r'#(.*)')
+    
+    return df_entrylist
+
+
+get_entry_list(stub)
+
+
+# ## `EWRC` Class
+# Create a class to that can be used to gran all the results for a particular rally, as required.
+#
+# We fudge the definition of class functions so that we can separately define and functions in a standalione way. This is probably *not good practice*...!
+
+class EWRC:
+    """Class for eWRC data for a particular rally."""
+
+    def __init__(self, stub):
+        self.stub = stub
+        
+        self.stage_result_links = None
+        
+        self.df_overall = None
+        self.df_stages = None
+        self.df_overall_pos = None
+        
+        self.event_dist = None
+        self.df_itinerary_leg_totals = None
+        self.df_itinerary = None
+        self.df_full_itinerary =None
+        
+        self.df_entry_list = None
+ 
+        self.df_stage_result = pd.DataFrame(columns=stage_result_cols)
+        self.df_stage_overall = pd.DataFrame(columns=stage_overall_cols)
+        self.df_stage_retirements = pd.DataFrame(columns=retirement_cols+retirement_extra_cols)
+        self.df_stage_penalties = pd.DataFrame(columns=penalty_cols+penalty_extra_cols)
+    
+    def get_stage_times(self):
+        if self.df_overall is None or self.df_stages is None or self.df_overall_pos is None:
+            self.df_overall, self.df_stages, self.df_overall_pos = get_stage_times(self.stub)
+
+        return self.df_overall, self.df_stages, self.df_overall_pos
+    
+    def get_itinerary(self):
+        if self.event_dist is None or self.df_itinerary_leg_totals is None \
+            or self.df_itinerary is None or self.df_full_itinerary is None:
+                self.event_dist, self.df_itinerary_leg_totals, \
+                    self.df_itinerary, self.df_full_itinerary_df = get_itinerary(self.stub)
+        
+        return self.event_dist, self.df_itinerary_leg_totals, \
+                self.df_itinerary, self.df_full_itinerary
+    
+    def get_entry_list(self):
+        if self.df_entry_list is None:
+            self.df_entry_list = get_entry_list(self.stub)
+        return self.df_entry_list
+    
+    def get_stage_result_links(self):
+        if self.stage_result_links is None:
+            self.stage_result_links = get_stage_result_links(self.stub)
+        return self.stage_result_links
+    
+    def get_stage_results(self, stage=None):
+        #for now, just return what we have with stage as None
+        # Could maybe change that to get everything?
+        if stage and stage not in self.df_stage_result['Stage'].unique():
+            links = self.get_stage_result_links()
+            if stage in links:
+                df_stage_result, df_stage_overall, df_stage_retirements, \
+                    df_stage_penalties = get_stage_results(links[stage])
+                self.df_stage_result = self.df_stage_result.append(df_stage_result, sort=False).reset_index(drop=True)
+                self.df_stage_overall = self.df_stage_overall.append(df_stage_overall, sort=False).reset_index(drop=True)
+                self.df_stage_retirements = self.df_stage_retirements.append(df_stage_retirements, sort=False).reset_index(drop=True)
+                self.df_stage_penalties = self.df_stage_penalties.append(df_stage_penalties, sort=False).reset_index(drop=True)
+            
+        return self.df_stage_result, self.df_stage_overall, \
+                self.df_stage_retirements, self.df_stage_penalties
+
+
+ewrc=EWRC(rally_stub)
+
+ewrc.get_stage_results('SS4')
+
+ewrc.get_stage_result_links()
+
+ewrc.get_stage_times()
+
+ewrc.get_itinerary()
+
+ewrc.get_entry_list()
 
 
