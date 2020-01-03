@@ -1,8 +1,22 @@
+# ---
+# jupyter:
+#   jupytext:
+#     formats: ipynb,py:light
+#     text_representation:
+#       extension: .py
+#       format_name: light
+#       format_version: '1.5'
+#       jupytext_version: 1.3.0rc1
+#   kernelspec:
+#     display_name: Python 3
+#     language: python
+#     name: python3
+# ---
+
 # # eWRC API
 #
 # Simple Python API for eWRC results.
 
-# +
 import pandas as pd
 import re
 from dakar_utils import getTime
@@ -11,7 +25,6 @@ import requests
 import lxml.html as LH
 from bs4 import BeautifulSoup
 
-# -
 
 # ## Generic Utilities
 #
@@ -29,7 +42,6 @@ def dfify(table):
     return df
 
 
-# +
 import unicodedata
 
 def cleanString(s):
@@ -39,8 +51,6 @@ def cleanString(s):
     
     return s
 
-
-# -
 
 # ## Timing Utilities
 
@@ -57,7 +67,6 @@ def diffgapsplitter(col):
     col['Gap'] = col['Gap'].apply(getTime)#.astype(float)
     col['Diff'] = col['Diff'].apply(getTime)
     return col
-
 
 
 # ## Scraping Functions
@@ -86,12 +95,13 @@ def get_stage_result_links(stub):
     return links
 
 
-#url='https://www.ewrc-results.com/results/54762-corbeau-seats-rally-tendring-clacton-2019/'
-rally_stub = '54762-corbeau-seats-rally-tendring-clacton-2019'
-tmp = get_stage_result_links(rally_stub)
-tmp
+# + tags=["active-ipynb"]
+# #url='https://www.ewrc-results.com/results/54762-corbeau-seats-rally-tendring-clacton-2019/'
+# rally_stub = '54762-corbeau-seats-rally-tendring-clacton-2019'
+# tmp = get_stage_result_links(rally_stub)
+# tmp
+# -
 
-# +
 stage_result_cols = ['Pos', 'CarNum', 'Desc', 'Class', 'Time', 'GapDiff', 'Speedkm', 'Stage',
        'StageName', 'StageDist', 'Gap', 'Diff', 'Speed', 'Dist', 'entryId',
        'model', 'navigator', 'PosNum']
@@ -105,13 +115,12 @@ retirement_extra_cols = ['Driver', 'CoDriver', 'Stage']
 
 penalty_cols = ['CarNum', 'driverNav', 'Model', 'PenReason']
 penalty_extra_cols = ['Driver', 'CoDriver', 'Stage', 'Time','Reason']
- 
 
-# +
+
 from numpy import nan
 
 from parse import parse   
-    
+
 def get_stage_results(stub):
     soup = soupify('{}{}'.format(base_url, stub))
     
@@ -194,28 +203,31 @@ def get_stage_results(stub):
         df_stage_penalties['Stage'] = stage_num
     
     return df_stage_result, df_stage_overall, df_stage_retirements, df_stage_penalties
+
+# + tags=["active-ipynb"]
+# partial_stub = '/results/54762-corbeau-seats-rally-tendring-clacton-2019/'
+# partial_stub='/results/42870-rallye-automobile-de-monte-carlo-2018/'
+# #stub = tmp['SS3']
+# stage_result, stage_overall, stage_retirements, stage_penalties = get_stage_results(partial_stub)
+
+# + tags=["active-ipynb"]
+# stage_result.head()
+
+# + tags=["active-ipynb"]
+# stage_overall
+
+# + tags=["active-ipynb"]
+# stage_retirements
+
+# + tags=["active-ipynb"]
+# stage_penalties
 # -
 
-partial_stub = '/results/54762-corbeau-seats-rally-tendring-clacton-2019/'
-partial_stub='/results/42870-rallye-automobile-de-monte-carlo-2018/'
-#stub = tmp['SS3']
-stage_result, stage_overall, stage_retirements, stage_penalties = get_stage_results(partial_stub)
-
-stage_result.head()
-
-stage_overall
-
-stage_retirements
-
-stage_penalties
-
-# +
 from parse import parse
 
 def get_stage_times(stub):
     url='https://www.ewrc-results.com/times/{stub}/'.format(stub=stub)
 
-    
     soup = soupify(url)
     
     times = soup.find('div',{'class':'times'}).findChildren('div' , recursive=False)
@@ -278,6 +290,7 @@ def get_stage_times(stub):
                 penalties.append(penalty)
 
         t.append({'entryId':entryId,
+                  'driverNav': driverNav,
                   'driver':driver.strip(),
                  'navigator':navigator.strip(),
                   'carNum':carNum,
@@ -289,16 +302,19 @@ def get_stage_times(stub):
                  'positions':positions, 'penalties':penalties})
 
 
-    df = pd.DataFrame(t).set_index(['entryId'])
+    df_allInOne = pd.DataFrame(t).set_index(['entryId'])
     
-    df_overall = pd.DataFrame(df['overalltimes'].tolist(), index= df.index)
+    df_overall = pd.DataFrame(df_allInOne['overalltimes'].tolist(), index= df_allInOne.index)
     df_overall.columns = range(1,df_overall.shape[1]+1)
     
-    df_overall_pos = pd.DataFrame(df['positions'].tolist(), index= df.index)
+    df_overall_pos = pd.DataFrame(df_allInOne['positions'].tolist(), index= df_allInOne.index)
     df_overall_pos.columns = range(1,df_overall_pos.shape[1]+1)
 
-    df_stages = pd.DataFrame(df['stagetimes'].tolist(), index= df.index)
+    df_stages = pd.DataFrame(df_allInOne['stagetimes'].tolist(), index= df_allInOne.index)
     df_stages.columns = range(1,df_stages.shape[1]+1)
+    
+    df_stages_pos = df_stages.rank(method='min')
+    df_stages_pos.columns = range(1,df_stages_pos.shape[1]+1)
     
     xcols = df_overall.columns
 
@@ -306,20 +322,64 @@ def get_stage_times(stub):
         df_overall[ss] = df_overall[ss].apply(getTime)
         df_stages[ss] = df_stages[ss].apply(getTime)
 
-    return df_overall, df_stages, df_overall_pos
+    return df_allInOne, df_overall, df_stages, df_overall_pos, df_stages_pos
 
 
-# +
-url='https://www.ewrc-results.com/times/54762-corbeau-seats-rally-tendring-clacton-2019/'
-#url='https://www.ewrc-results.com/times/42870-rallye-automobile-de-monte-carlo-2018/'
+# + tags=["active-ipynb"]
+# url='https://www.ewrc-results.com/times/54762-corbeau-seats-rally-tendring-clacton-2019/'
+# #url='https://www.ewrc-results.com/times/42870-rallye-automobile-de-monte-carlo-2018/'
 
-rally_stub = '42870-rallye-automobile-de-monte-carlo-2018'
-df_overall, df_stages, df_overall_pos = get_stage_times(rally_stub)
+# + tags=["active-ipynb"]
+# rally_stub = '42870-rallye-automobile-de-monte-carlo-2018'
+# df_allInOne, df_overall, df_stages, \
+#     df_overall_pos, df_stages_pos = get_stage_times(rally_stub)
+
+# + tags=["active-ipynb"]
+# display(df_allInOne)
+# display(df_overall)
+# display(df_stages)
+# display(df_overall_pos)
 # -
 
-display(df_overall)
-display(df_stages)
-display(df_overall_pos)
+# ## Final Results
+#
+# Get overall rankings.
+
+final_path = 'https://www.ewrc-results.com/final/{stub}/'
+
+
+# + run_control={"marked": false}
+def get_final(stub):
+    soup = soupify(final_path.format(stub=stub))
+    tables = soup.find_all('table')
+    #tables = LH.fromstring(html).xpath('//table')
+    df_rally_overall = pd.read_html('<html><body>{}</body></html>'.format(tables[0]))[0]
+    #df_rally_overall['badge'] = [img.find('img')['src'] for img in tables[0].findAll("td", {"class": "final-results-icon"}) ]
+    df_rally_overall.dropna(how='all', axis=1, inplace=True)
+    df_rally_overall.columns=['Pos','CarNum','driverNav','ModelReg','Class', 'Time','GapDiff', 'Speedkm']
+
+    #Get the entry ID - use this as the unique key
+    #in column 3, <a title='Entry info and stats'>
+    df_rally_overall['entryId']=[a['href'] for a in tables[0].findAll("a", {"title": "Entry info and stats"}) ]
+    df_rally_overall.set_index('entryId', inplace=True)
+
+    df_rally_overall[['Driver','CoDriver']] = df_rally_overall['driverNav'].str.extract(r'(?P<Driver>.*)\s+-\s+(?P<CoDriver>.*)')
+
+    df_rally_overall['Historic']= df_rally_overall['Class'].str.contains('Historic')
+    df_rally_overall['Class']= df_rally_overall['Class'].str.replace('Historic','')
+
+    df_rally_overall['Pos'] = df_rally_overall['Pos'].astype(str).str.extract(r'(.*)\.')
+    df_rally_overall['Pos'] = df_rally_overall['Pos'].astype(int)
+
+    df_rally_overall[['Model','Registration']]=df_rally_overall['ModelReg'].str.extract(r'(?P<Model>.*) \((?P<Registration>.*)\)')
+
+    df_rally_overall["Class Rank"] = df_rally_overall.groupby("Class")["Pos"].rank(method='min')
+
+    return df_rally_overall
+    
+
+
+# -
 
 # ## Itinerary
 
@@ -332,36 +392,49 @@ def get_itinerary(stub):
     event_dist = soup.find('td',text='Event total').parent.find_all('td')[-1].text
 
     itinerary_df = dfify( soup.find('div', {'class':'timetable'}).find('table') )
-    itinerary_df.columns = ['Stage','Name', 'Distance', 'Date', 'Time']
+    itinerary_df.columns = ['Stage','Name', 'distance', 'Date', 'Time']
     itinerary_df['Leg'] = [nan if 'leg' not in str(x) else str(x).replace('. leg','') for x in itinerary_df['Stage']]
     itinerary_df['Leg'] = itinerary_df['Leg'].fillna(method='ffill')
     itinerary_df['Date'] = itinerary_df['Date'].fillna(method='ffill')
 
-    itinerary_leg_totals = itinerary_df[itinerary_df['Name'].str.contains("Leg total")][['Leg', 'Distance']].reset_index(drop=True)
+    itinerary_leg_totals = itinerary_df[itinerary_df['Name'].str.contains("Leg total")][['Leg', 'distance']].reset_index(drop=True)
 
     full_itinerary_df = itinerary_df[~itinerary_df['Name'].str.contains(". leg")]
     full_itinerary_df = full_itinerary_df[~full_itinerary_df['Date'].str.contains(" km")]
     full_itinerary_df = full_itinerary_df.fillna(method='bfill', axis=1)
 
     #Legs may not be identified but we may want to identify services
-    full_itinerary_df['Service'] = [ 'Service' in i for i in full_itinerary_df['Distance'] ]
+    full_itinerary_df['Service'] = [ 'Service' in i for i in full_itinerary_df['distance'] ]
     full_itinerary_df['Service_Num'] = full_itinerary_df['Service'].cumsum()
     full_itinerary_df.reset_index(drop=True, inplace=True)
     #itinerary_df = full_itinerary_df[~full_itinerary_df['Service']].reset_index(drop=True)
     itinerary_df = full_itinerary_df[full_itinerary_df['Stage'].str.startswith('SS')].reset_index(drop=True)
     itinerary_df['Section'] = itinerary_df['Service_Num'].rank(method='dense')
     itinerary_df.drop(columns=['Service', 'Service_Num'], inplace=True)
+    
+    itinerary_df[['Distance', 'Distance_unit']] = itinerary_df['distance'].str.extract(r'(?P<Distance>[^\s]*)\s+(?P<Distance_unit>.*)?')
+    itinerary_df['Distance'] = itinerary_df['Distance'].astype(float)
+    itinerary_df.set_index('Stage', inplace=True)
+
     return event_dist, itinerary_leg_totals, itinerary_df, full_itinerary_df
 
 
-stub='54762-corbeau-seats-rally-tendring-clacton-2019'
-stub='42870-rallye-automobile-de-monte-carlo-2018'
-event_dist, itinerary_leg_totals, itinerary_df, full_itinerary_df = get_itinerary(stub)
+# + tags=["active-ipynb"]
+# stub='54762-corbeau-seats-rally-tendring-clacton-2019'
+# stub='42870-rallye-automobile-de-monte-carlo-2018'
+# event_dist, itinerary_leg_totals, itinerary_df, full_itinerary_df = get_itinerary(stub)
 
-print(event_dist)
-display(itinerary_leg_totals)
-display(itinerary_df)
-display(full_itinerary_df)
+# + tags=["active-ipynb"]
+# print(event_dist)
+# display(itinerary_leg_totals)
+# display(itinerary_df)
+# display(full_itinerary_df)
+
+# + tags=["active-ipynb"]
+# _tmp = itinerary_df['Distance']
+# _tmp.index = [int(i.lstrip('SS')) for i in _tmp.index]
+# _tmp
+# -
 
 # ## Entry List
 #
@@ -386,7 +459,24 @@ def get_entry_list(stub):
     return df_entrylist
 
 
-get_entry_list(stub)
+# + tags=["active-ipynb"]
+# get_entry_list(stub)
+# -
+
+# ## Rebasers
+#
+# Utils for rebasing
+
+def _rebaseTimes(times, bib=None, basetimes=None):
+    ''' Rebase times relative to specified driver. '''
+    #Should we rebase against entryId, so need to lool that up. In which case, leave index as entryId
+    if bib is None and basetimes is None: return times
+    #bibid = codes[codes['Code']==bib].index.tolist()[0]
+    if bib is not None:
+        return times - times.loc[bib]
+    if times is not None:
+        return times - basetimes
+    return times
 
 
 # ## `EWRC` Class
@@ -402,14 +492,23 @@ class EWRC:
         
         self.stage_result_links = None
         
+        self.df_rally_overall = None
+        
+        self.df_allInOne = None #we don't actually use this?
         self.df_overall = None
         self.df_stages = None
         self.df_overall_pos = None
+        self.df_stages_pos = None
+        
+        self.df_overall_rebased_to_leader = None
+        self.df_stages_rebased_to_overall_leader = None
+        self.df_stages_rebased_to_stage_winner = None
         
         self.event_dist = None
         self.df_itinerary_leg_totals = None
         self.df_itinerary = None
         self.df_full_itinerary =None
+        self.stage_distances = None
         
         self.df_entry_list = None
  
@@ -417,12 +516,33 @@ class EWRC:
         self.df_stage_overall = pd.DataFrame(columns=stage_overall_cols)
         self.df_stage_retirements = pd.DataFrame(columns=retirement_cols+retirement_extra_cols)
         self.df_stage_penalties = pd.DataFrame(columns=penalty_cols+penalty_extra_cols)
+
+    def set_rebased_times(self):
+        if self.df_stages_rebased_to_overall_leader is None \
+                or self.df_stages_rebased_to_stage_winner is None \
+                or self.df_stages_rebased_to_stage_winner is None:
+            #print('setting rebased times...')
+            self.get_stage_times()
+            leaderStagetimes = self.df_stages.iloc[0]
+            self.df_stages_rebased_to_overall_leader = self.df_stages.apply(_rebaseTimes, basetimes=leaderStagetimes, axis=1)
+            #Now rebase to the stage winner
+            self.df_stages_rebased_to_stage_winner = self.df_stages_rebased_to_overall_leader.apply(_rebaseTimes, basetimes=self.df_stages_rebased_to_overall_leader.min(), axis=1)
+
+            leaderTimes = self.df_overall.min()
+            self.df_overall_rebased_to_leader = self.df_overall.apply(_rebaseTimes, basetimes=leaderTimes, axis=1)
+
     
+    def get_final(self):
+        if self.df_rally_overall is None:
+            self.df_rally_overall = get_final(self.stub)
+        return self.df_rally_overall
+        
     def get_stage_times(self):
         if self.df_overall is None or self.df_stages is None or self.df_overall_pos is None:
-            self.df_overall, self.df_stages, self.df_overall_pos = get_stage_times(self.stub)
+            self.df_allInOne, self.df_overall, self.df_stages, \
+                self.df_overall_pos, self.df_stages_pos = get_stage_times(self.stub)
 
-        return self.df_overall, self.df_stages, self.df_overall_pos
+        return self.df_allInOne, self.df_overall, self.df_stages, self.df_overall_pos
     
     def get_itinerary(self):
         if self.event_dist is None or self.df_itinerary_leg_totals is None \
@@ -430,6 +550,9 @@ class EWRC:
                 self.event_dist, self.df_itinerary_leg_totals, \
                     self.df_itinerary, self.df_full_itinerary_df = get_itinerary(self.stub)
         
+        _stage_distances = self.df_itinerary['Distance']
+        _stage_distances.index = [int(i.lstrip('SS')) for i in _stage_distances.index]
+        self.stage_distances = _stage_distances
         return self.event_dist, self.df_itinerary_leg_totals, \
                 self.df_itinerary, self.df_full_itinerary
     
@@ -445,12 +568,17 @@ class EWRC:
     
     def get_stage_results(self, stage=None):
         #for now, just return what we have with stage as None
+        if stage is None:
+            return self.df_stage_result, self.df_stage_overall, \
+                    self.df_stage_retirements, self.df_stage_penalties
         # Could maybe change that to get everything?
         stages = stage if isinstance(stage,list) else [stage]
         if stages:
             links = self.get_stage_result_links()
             if 'all' in stages:
                 stages = [k for k in links.keys() if 'leg' not in k]
+            elif 'final' in stages or 'last' in stages:
+                stages = [k for k in links.keys() if 'leg' not in k][-1]
             for stage in stages:
                 if stage not in self.df_stage_result['Stage'].unique() and stage in links:
                     df_stage_result, df_stage_overall, df_stage_retirements, \
@@ -469,25 +597,37 @@ class EWRC:
         return self.df_stage_result, self.df_stage_overall, \
                 self.df_stage_retirements, self.df_stage_penalties
 
+# + tags=["active-ipynb"]
+# ewrc=EWRC(rally_stub)
 
-ewrc=EWRC(rally_stub)
+# + tags=["active-ipynb"]
+# #df_stage_result, df_stage_overall, df_stage_retirements, df_stage_penalties
+# ewrc.get_stage_results()
 
-ewrc.get_stage_results()
+# + tags=["active-ipynb"]
+# ewrc.get_stage_results('all')
 
-ewrc.get_stage_results('all')
+# + tags=["active-ipynb"]
+# ewrc.set_rebased_times()
+# display(ewrc.df_stages_rebased_to_overall_leader)
 
-ewrc.get_stage_result_links()
+# + tags=["active-ipynb"]
+# ewrc.get_stage_result_links()
 
-ewrc.get_stage_times()
+# + tags=["active-ipynb"]
+# ewrc.get_stage_times()
 
-ewrc.get_itinerary()
+# + tags=["active-ipynb"]
+# ewrc.get_itinerary()
 
-ewrc.get_entry_list()
+# + tags=["active-ipynb"]
+# ewrc.get_entry_list()
 
-ewrc=EWRC('54464-corsica-linea-tour-de-corse-2019')
+# + tags=["active-ipynb"]
+# ewrc=EWRC('54464-corsica-linea-tour-de-corse-2019')
 
-ewrc.get_entry_list()
+# + tags=["active-ipynb"]
+# ewrc.get_entry_list()
 
-ewrc.get_stage_results('SS2')
-
-
+# + tags=["active-ipynb"]
+# ewrc.get_stage_results('SS2')
