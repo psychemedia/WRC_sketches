@@ -511,11 +511,21 @@ class EWRC:
         self.stage_distances = None
         
         self.df_entry_list = None
+        self.rally_classes = None
  
         self.df_stage_result = pd.DataFrame(columns=stage_result_cols)
         self.df_stage_overall = pd.DataFrame(columns=stage_overall_cols)
         self.df_stage_retirements = pd.DataFrame(columns=retirement_cols+retirement_extra_cols)
         self.df_stage_penalties = pd.DataFrame(columns=penalty_cols+penalty_extra_cols)
+
+    def carsInClass(self, qclass):
+        #Can't we also pass a dict of key/vals to the widget?
+        #Omit car 0
+        df_entry_list = self.get_entry_list()
+        if qclass.lower()=='all':
+            return df_entry_list[df_entry_list['CarNum']!='#0']['carNum'].dropna().to_list()
+        return df_entry_list[(df_entry_list['CarNum']!='#0') & (df_entry_list['Class']==qclass)]['carNum'].to_list()
+
 
     def set_rebased_times(self):
         if self.df_stages_rebased_to_overall_leader is None \
@@ -559,6 +569,10 @@ class EWRC:
     def get_entry_list(self):
         if self.df_entry_list is None:
             self.df_entry_list = get_entry_list(self.stub)
+            
+        #A list of classes could be useful, so grab it while we can
+        self.rally_classes = self.df_entry_list['Class'].dropna().unique()
+        
         return self.df_entry_list
     
     def get_stage_result_links(self):
