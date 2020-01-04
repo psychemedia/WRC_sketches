@@ -604,14 +604,25 @@ def discrete_cmap(N, base_cmap=None):
 # PACEMAX=10
 #
 # PACEMAX = PACEMAX+0.1
-# N = len(set(dff['entryId'].cat.codes))+1
 #
-# lines = dff.apply(lambda x: [(x['x0'],x['value']),(x['x1'],x['value'])], axis=1).to_list()
+# lines = dff.apply(lambda x: [(x['x0'],x['value']),
+#                              (x['x1'],x['value'])], axis=1).to_list()
+#
+# _entries = [True if (pd.notna(xy[0][1]) and pd.notna(xy[1][1]) 
+#                                 and xy[0][1] <= PACEMAX) else False for xy in lines]
 # lines = [xy for xy in lines if (pd.notna(xy[0][1]) and pd.notna(xy[1][1]) 
 #                                 and xy[0][1] <= PACEMAX)]
 #
-# lc = mc.LineCollection(lines, array=dff['entryId'].cat.codes,
+#
+# #N = len(set(dff['entryId'].cat.codes))+1
+# #lc = mc.LineCollection(lines, array=dff['entryId'].cat.codes,
+# #                       cmap=discrete_cmap(N, 'brg'), linewidths=2)
+#
+# N = len(set(dff[_entries]['entryId'].cat.codes))+1
+# print(N)
+# lc = mc.LineCollection(lines, array=dff[_entries]['entryId'].cat.codes,
 #                        cmap=discrete_cmap(N, 'brg'), linewidths=2)
+#
 #
 # fig, ax = plt.subplots(figsize=(12,8))
 #
@@ -684,16 +695,25 @@ def pace_map(ewrc, rebase='stage_winner', rally_class='all', PACEMAX = 2):
     
     _ymin = 0
 
-    PACEMAX=10
-
     PACEMAX = PACEMAX+0.1
-    N = len(set(dff['entryId'].cat.codes))+1
 
-    lines = dff.apply(lambda x: [(x['x0'],x['value']),(x['x1'],x['value'])], axis=1).to_list()
+    lines = dff.apply(lambda x: [(x['x0'],x['value']),(x['x1'],x['value'])],
+                                      axis=1).to_list()
+    
+    _entries = [True if (pd.notna(xy[0][1]) and pd.notna(xy[1][1]) 
+                                and xy[0][1] <= PACEMAX) else False for xy in lines]
+
     lines = [xy for xy in lines if (pd.notna(xy[0][1]) and pd.notna(xy[1][1]) 
                                     and xy[0][1] <= PACEMAX)]
 
-    lc = mc.LineCollection(lines, array=dff['entryId'].cat.codes,
+    #N = len(set(dff['entryId'].cat.codes))+1
+    #lc = mc.LineCollection(lines, array=dff['entryId'].cat.codes,
+    #                       cmap=discrete_cmap(N, 'brg'), linewidths=2)
+
+    N = len(set(dff[_entries]['entryId'].cat.codes))+1
+    lookup = {j:i for i,j in enumerate(set(dff[_entries]['entryId'].cat.codes))}
+    
+    lc = mc.LineCollection(lines, array=np.array([lookup[c] for c in dff[_entries]['entryId'].cat.codes]),
                            cmap=discrete_cmap(N, 'brg'), linewidths=2)
 
     fig, ax = plt.subplots(figsize=(12,8))
@@ -739,7 +759,11 @@ def pace_map(ewrc, rebase='stage_winner', rally_class='all', PACEMAX = 2):
     ax.set_ylim( _ymax, _ymin-0.3 );
 # -
 
-pace_map(ewrc)
+pace_map(ewrc, PACEMAX=1)
+
+# + tags=["active-ipynb"]
+# pace_map(ewrc, rebase='/entryinfo/42870-rallye-automobile-de-monte-carlo-2018/1642089/',
+#          PACEMAX=1)
 
 # +
 # TO DO
