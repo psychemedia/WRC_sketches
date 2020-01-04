@@ -317,7 +317,6 @@ def requiredPace(ewrc, rebase=None, within=None):
     return (_df.apply(_rebaseTimes, bib=rebase, axis=0).shift(axis=1) / dist).round(3)
 
 
-
 # + tags=["active-ipynb"]
 # requiredStagePace(ewrc, 'SS4', rebase=None, target_stage=None)
 
@@ -333,9 +332,16 @@ def requiredPace(ewrc, rebase=None, within=None):
 
 # ## Reporter
 
+
+
 # +
 def rally_report(ewrc, rebase, codes=None):
-    
+    ''' Generate a rally report.
+        rebase: rebase times to a specified car or position:
+            - overall_leader
+            - stage_winner
+        codes: a list of index codes, a rally class or list of rally classes
+        '''
     #The codes let us filter  - should filter in this function really?
     
     df_allInOne, df_overall, df_stages, df_overall_pos = ewrc.get_stage_times()
@@ -343,16 +349,30 @@ def rally_report(ewrc, rebase, codes=None):
     #codes provides the order and is taken from the stage order
     if codes is None:
         codes = pd.DataFrame(df_stages.index.tolist()).rename(columns={0:'entryId'}).set_index('entryId')
+    else:
+        codes = [codes] if isinstance(codes,str) else codes
+        #Allowable codes
+        _codes = set(df_allInOne.index.tolist())
+        carNums=[]
+        for _code in codes:
+            if _code in ewrc.rally_classes:
+                carNums = carNums + df_allInOne[df_allInOne['carNum'].isin(ewrc.carsInClass(_code))].index.tolist() 
+        #This was supposed to alose let you add specific codes
+        #  but seems to cause an error further on...
+        #carNums = carNums + df_allInOne.loc[set(codes).intersection(_codes)].index.tolist() 
+        codes = pd.DataFrame(carNums).rename(columns={0:'entryId'}).set_index('entryId')
     
     xcols = df_overall.columns
     
     #rebase is the index value
     #tmp = pd.merge(codes, df_rally_overall[['Class']], how='left', left_index=True, right_index=True)
-    tmp = pd.merge(codes, ewrc.df_allInOne[['carNum']], how='left', left_index=True, right_index=True)
+    tmp = pd.merge(codes, ewrc.df_allInOne[['carNum']],
+                   how='left', left_index=True, right_index=True)
     #tmp = pd.merge(tmp, df_entry_list[['Class','carNum']], how='left', on='carNum')
     #https://stackoverflow.com/a/11982843/454773
     df_entry_list = ewrc.get_entry_list()
-    tmp = tmp.reset_index().merge(df_entry_list[['Class','carNum']], how="left", on='carNum').set_index('entryId')
+    tmp = tmp.reset_index().merge(df_entry_list[['Class','carNum']],
+                                  how="left", on='carNum').set_index('entryId')
     #print(tmp[-1:].index)
     #If we want the charts relative to overall,
     # we need to assemble them at least on cars ranked above lowest ranked car in codes
@@ -460,7 +480,7 @@ def rally_report(ewrc, rebase, codes=None):
 # + tags=["active-ipynb"]
 # from IPython.display import HTML
 #
-# tmp, s2 = rally_report(ewrc, wREBASE)
+# tmp, s2 = rally_report(ewrc, wREBASE, codes=None)
 # display(HTML(s2))
 
 # + tags=["active-ipynb"]
@@ -487,15 +507,9 @@ def rally_report(ewrc, rebase, codes=None):
 #     options=['All']+ewrc.df_entry_list[ewrc.df_entry_list['CarNum']!='#0']['Class'].dropna().unique().tolist(),
 #     value='All', description='Class:', disabled=False )
 #
-# def carsInClass(qclass):
-#     #Can't we also pass a dict of key/vals to the widget?
-#     #Omit car 0
-#     if qclass=='All':
-#         return ewrc.df_entry_list[ewrc.df_entry_list['CarNum']!='#0']['carNum'].dropna().to_list()
-#     return ewrc.df_entry_list[(ewrc.df_entry_list['CarNum']!='#0') & (ewrc.df_entry_list['Class']==qclass)]['carNum'].to_list()
 #
 # carNum = widgets.Dropdown(
-#     options=carsInClass(classes.value),
+#     options=ewrc.carsInClass(classes.value),
 #     description='Car:', disabled=False)
 #
 # def update_drivers(*args):
@@ -506,16 +520,18 @@ def rally_report(ewrc, rebase, codes=None):
 #
 # def rally_report2( cl, carNum):
 #     #rebase = df_rally_overall[df_rally_overall['CarNum']==carNum].index[0]
-#     #carNums = df_rally_overall[df_rally_overall['CarNum'].isin(carsInClass(cl))].index.tolist()
+#     #carNums = df_rally_overall[df_rally_overall['CarNum'].isin(ewrc.carsInClass(cl))].index.tolist()
 #     df=ewrc.df_allInOne
 #     rebase =  df[df['carNum']==carNum].index[0]
 #     #print(rebase)
-#     carNums = df[df['carNum'].isin(carsInClass(cl))].index.tolist()
+#     #carNums = df[df['carNum'].isin(ewrc.carsInClass(cl))].index.tolist()
+#     #codes = pd.DataFrame(carNums).rename(columns={0:'entryId'}).set_index('entryId')
 #
-#     codes = pd.DataFrame(carNums).rename(columns={0:'entryId'}).set_index('entryId')
 #     #print(codes[-1:])
-#     tmp, s2 = rally_report(ewrc, rebase, codes = codes)
-#
+#     if cl=='All':
+#         cl = None
+#     tmp, s2 = rally_report(ewrc, rebase, codes = cl)
+#     
 #     #display(HTML(s2))
 #     #rally_logo='<img width="100%" src="/Users/tonyhirst/Documents/GitHub/WRC_sketches/doodles/images/CSRTC-Logo-Banner-2019-01-1920x600-e1527255159629.jpg"/>'
 #     rally_logo=''
@@ -537,10 +553,11 @@ def rally_report(ewrc, rebase, codes=None):
 #     print(_)
 #     
 # interact(rally_report2, cl=classes, carNum=carNum);
-# -
 
-df = paceReport(ewrc, rebase='stage_winner').head()
-df.T.reset_index()
+# + tags=["active-ipynb"]
+# df = paceReport(ewrc, rebase='stage_winner')#.head()
+# df.T.reset_index()
+# -
 
 import matplotlib.pyplot as plt
 
@@ -549,23 +566,22 @@ import matplotlib.pyplot as plt
 # -
 
 #Create xmin and xmax vals for stage indicators by cumulative distance
-xy = [_ for _ in zip(ewrc.stage_distances.cumsum().shift(fill_value=0), 
-                     ewrc.stage_distances.cumsum()) ]
+xy = [_ for _ in zip(ewrc.stage_distances.cumsum().shift(fill_value=0).round(2), 
+                     ewrc.stage_distances.cumsum().round(2)) ]
 xy
 
-# +
-# Generate a dataframe that allows us to plot values actross the cumulative distance
-dff=df.T.reset_index().melt(id_vars='index')
-dff = pd.merge(dff, ewrc.df_allInOne[['carNum']],
-               how='left', left_on='entryId', right_index=True)
-dff['entryId'] = dff['entryId'].astype('category')
 
-dff['x0'] = dff['index'].apply(lambda x: xy[x-1][0] )
-dff['x1'] = dff['index'].apply(lambda x: xy[x-1][1] )
-dff['xm'] = (dff['x0'] + dff['x1'])/2
-dff
-
-
+# + tags=["active-ipynb"]
+# # Generate a dataframe that allows us to plot values actross the cumulative distance
+# dff=df.T.reset_index().melt(id_vars='index')
+# dff = pd.merge(dff, ewrc.df_allInOne[['carNum']],
+#                how='left', left_on='entryId', right_index=True)
+# dff['entryId'] = dff['entryId'].astype('category')
+#
+# dff['x0'] = dff['index'].apply(lambda x: xy[x-1][0] )
+# dff['x1'] = dff['index'].apply(lambda x: xy[x-1][1] )
+# dff['xm'] = (dff['x0'] + dff['x1'])/2
+# dff
 # -
 
 #https://gist.github.com/jakevdp/91077b0cae40f8f8244a
@@ -582,62 +598,148 @@ def discrete_cmap(N, base_cmap=None):
     return base.from_list(cmap_name, color_list, N)
 
 
+# + tags=["active-ipynb"]
+# _ymin = 0
+#
+# PACEMAX=10
+#
+# PACEMAX = PACEMAX+0.1
+# N = len(set(dff['entryId'].cat.codes))+1
+#
+# lines = dff.apply(lambda x: [(x['x0'],x['value']),(x['x1'],x['value'])], axis=1).to_list()
+# lines = [xy for xy in lines if (pd.notna(xy[0][1]) and pd.notna(xy[1][1]) 
+#                                 and xy[0][1] <= PACEMAX)]
+#
+# lc = mc.LineCollection(lines, array=dff['entryId'].cat.codes,
+#                        cmap=discrete_cmap(N, 'brg'), linewidths=2)
+#
+# fig, ax = plt.subplots(figsize=(12,8))
+#
+# plt.box(on=None)
+# plt.grid(axis='y')
+# ax.xaxis.set_ticks_position('none')
+# ax.yaxis.set_ticks_position('none') 
+#
+#
+# ax.add_collection(lc)
+#
+# #Add labels for each car
+# for x, y, s in zip(dff['xm'], dff['value'], dff['carNum']):
+#     if pd.notna(y) and y <= PACEMAX:
+#         plt.text(x, y, s, size=10)
+#         if y < _ymin:
+#             _ymin = y
+#             
+# ax.figsize = (16,6)
+# ax.autoscale()
+# #ax.set_facecolor('xkcd:salmon')
+# ax.margins(0.1)
+#
+# # TO DO - add lines to demarcate days
+#
+# plt.gca().invert_yaxis()
+#
+# ymax, ymin = ax.get_ylim()
+# xmax, xmin = ax.get_xlim()
+#
+# _ymax = ymax if ymax < PACEMAX else PACEMAX
+#
+# #Add stage labels
+# for _i, _xy in enumerate(xy):
+#     plt.text((_xy[0]+_xy[1])/2, _ymin-0.5, _i+1, size=10,
+#             bbox=dict(facecolor='red', alpha=0.5))
+#
+#
+# for _x in ewrc.stage_distances.cumsum():
+#     ax.axvline( x=_x, color='lightgrey', linestyle=':')
+#
+# ax.set_ylim( _ymax, _ymin-0.3 );
+
 # +
 from matplotlib import collections  as mc
 from matplotlib import colors as mcolors
 from matplotlib import patches
 import numpy as np
 
-PACEMAX = 2
-
-
-_ymin = 0
-PACEMAX = PACEMAX+0.1
-
-N = len(set(dff['entryId'].cat.codes))+1
+def pace_map(ewrc, rebase='stage_winner', rally_class='all', PACEMAX = 2):
     
-lines = dff.apply(lambda x: [(x['x0'],x['value']),(x['x1'],x['value'])], axis=1).to_list()
+    def _pace_df(df):
+        
+        dff=df.T.reset_index().melt(id_vars='index')
+        dff = pd.merge(dff, ewrc.df_allInOne[['carNum']],
+                       how='left', left_on='entryId', right_index=True)
+        dff['entryId'] = dff['entryId'].astype('category')
 
-lc = mc.LineCollection(lines, array=dff['entryId'].cat.codes,
-                       cmap=discrete_cmap(N, 'brg'), linewidths=2)
+        dff['x0'] = dff['index'].apply(lambda x: xy[x-1][0] )
+        dff['x1'] = dff['index'].apply(lambda x: xy[x-1][1] )
+        dff['xm'] = (dff['x0'] + dff['x1'])/2
+        return dff
 
-fig, ax = plt.subplots(figsize=(12,8))
+    df = paceReport(ewrc, rebase=rebase)
+    
+    xy = [_ for _ in zip(ewrc.stage_distances.cumsum().shift(fill_value=0).round(2), 
+                             ewrc.stage_distances.cumsum().round(2)) ]
+    
+    dff = _pace_df(df)
+    
+    _ymin = 0
 
-plt.box(on=None)
-plt.grid(axis='y')
-ax.xaxis.set_ticks_position('none')
-ax.yaxis.set_ticks_position('none') 
+    PACEMAX=10
+
+    PACEMAX = PACEMAX+0.1
+    N = len(set(dff['entryId'].cat.codes))+1
+
+    lines = dff.apply(lambda x: [(x['x0'],x['value']),(x['x1'],x['value'])], axis=1).to_list()
+    lines = [xy for xy in lines if (pd.notna(xy[0][1]) and pd.notna(xy[1][1]) 
+                                    and xy[0][1] <= PACEMAX)]
+
+    lc = mc.LineCollection(lines, array=dff['entryId'].cat.codes,
+                           cmap=discrete_cmap(N, 'brg'), linewidths=2)
+
+    fig, ax = plt.subplots(figsize=(12,8))
+
+    plt.box(on=None)
+    plt.grid(axis='y')
+    ax.xaxis.set_ticks_position('none')
+    ax.yaxis.set_ticks_position('none') 
 
 
-ax.add_collection(lc)
+    ax.add_collection(lc)
 
-for x, y, s in zip(dff['xm'], dff['value'], dff['carNum']):
-    if y <= PACEMAX:
-        plt.text(x, y, s, size=10)
-    _ymin = y if y < _ymin else y
+    #Add labels for each car
+    for x, y, s in zip(dff['xm'], dff['value'], dff['carNum']):
+        if pd.notna(y) and y <= PACEMAX:
+            plt.text(x, y, s, size=10)
+            if y < _ymin:
+                _ymin = y
 
-ax.figsize = (16,6)
-ax.autoscale()
-#ax.set_facecolor('xkcd:salmon')
-ax.margins(0.1)
+    ax.figsize = (16,6)
+    ax.autoscale()
+    #ax.set_facecolor('xkcd:salmon')
+    ax.margins(0.1)
 
-# TO DO - add lines to demarcate stages and days
+    # TO DO - add lines to demarcate days
 
-plt.gca().invert_yaxis()
+    plt.gca().invert_yaxis()
 
-ymax, ymin = ax.get_ylim()
-xmax, xmin = ax.get_xlim()
+    ymax, ymin = ax.get_ylim()
+    xmax, xmin = ax.get_xlim()
 
-_ymax = ymax if ymax < PACEMAX else PACEMAX
+    _ymax = ymax if ymax < PACEMAX else PACEMAX
 
-for _i, _xy in enumerate(xy):
-    plt.text((_xy[0]+_xy[1])/2, _ymin-0.5, _i+1, size=10,
-            bbox=dict(facecolor='red', alpha=0.5))
+    #Add stage labels
+    for _i, _xy in enumerate(xy):
+        plt.text((_xy[0]+_xy[1])/2, _ymin-0.5, _i+1, size=10,
+                bbox=dict(facecolor='red', alpha=0.5))
 
-for _x in ewrc.stage_distances.cumsum():
-    ax.axvline( x=_x, color='lightgrey', linestyle=':')
 
-ax.set_ylim( _ymax, _ymin-0.3 );
+    for _x in ewrc.stage_distances.cumsum():
+        ax.axvline( x=_x, color='lightgrey', linestyle=':')
+
+    ax.set_ylim( _ymax, _ymin-0.3 );
+# -
+
+pace_map(ewrc)
 
 # +
 # TO DO
