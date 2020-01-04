@@ -222,10 +222,10 @@ def paceReport(ewrc, rebase=None):
     ewrc.set_rebased_times()
     ewrc.get_itinerary()
     
-    if rebase is None or rebase == 'overall_leader':
+    if rebase == 'overall_leader':
         _df = ewrc.df_stages_rebased_to_overall_leader
         rebase = None
-    elif rebase == 'stage_leader':
+    elif rebase is None or rebase == 'stage_winner':
         _df =  ewrc.df_stages_rebased_to_stage_winner
         rebase = None
     else:
@@ -236,7 +236,7 @@ def paceReport(ewrc, rebase=None):
 
 
 # + tags=["active-ipynb"]
-# paceReport(ewrc, rebase='stage_leader').head()
+# paceReport(ewrc, rebase='stage_winner').head()
 
 # + tags=["active-ipynb"]
 # paceReport(ewrc, rebase='overall_leader').head()
@@ -400,6 +400,11 @@ def rally_report(ewrc, rebase, codes=None):
 
 
 
+# +
+# TO DO
+# pace to stage winner  - bar chart cf. Gap
+# call it: stagePace
+
 # + tags=["active-ipynb"]
 # from IPython.display import HTML
 #
@@ -481,5 +486,93 @@ def rally_report(ewrc, rebase, codes=None):
 #     
 # interact(rally_report2, cl=classes, carNum=carNum);
 # -
+
+df = paceReport(ewrc, rebase='stage_winner').head()
+df.T.reset_index()
+
+import matplotlib.pyplot as plt
+
+# +
+# #%pip install adjustText
+# -
+
+#Create xmin and xmax vals for stage indicators by cumulative distance
+xy = [_ for _ in zip(ewrc.stage_distances.cumsum().shift(fill_value=0), 
+                     ewrc.stage_distances.cumsum()) ]
+xy
+
+# +
+# Generate a dataframe that allows us to plot values actross the cumulative distance
+dff=df.T.reset_index().melt(id_vars='index')
+dff = pd.merge(dff, ewrc.df_allInOne[['carNum']],
+               how='left', left_on='entryId', right_index=True)
+dff['entryId'] = dff['entryId'].astype('category')
+
+dff['x0'] = dff['index'].apply(lambda x: xy[x-1][0] )
+dff['x1'] = dff['index'].apply(lambda x: xy[x-1][1] )
+dff['xm'] = (dff['x0'] + dff['x1'])/2
+dff
+
+
+# -
+
+#https://gist.github.com/jakevdp/91077b0cae40f8f8244a
+def discrete_cmap(N, base_cmap=None):
+    """Create an N-bin discrete colormap from the specified input map"""
+
+    # Note that if base_cmap is a string or None, you can simply do
+    #    return plt.cm.get_cmap(base_cmap, N)
+    # The following works for string, None, or a colormap instance:
+
+    base = plt.cm.get_cmap(base_cmap)
+    color_list = base(np.linspace(0, 1, N))
+    cmap_name = base.name + str(N)
+    return base.from_list(cmap_name, color_list, N)
+
+
+# +
+from matplotlib import collections  as mc
+from matplotlib import colors as mcolors
+from matplotlib import patches
+import numpy as np
+
+N = len(set(dff['entryId'].cat.codes))+1
+    
+lines = dff.apply(lambda x: [(x['x0'],x['value']),(x['x1'],x['value'])], axis=1).to_list()
+
+lc = mc.LineCollection(lines, array=dff['entryId'].cat.codes,
+                       cmap=discrete_cmap(N, 'brg'), linewidths=2)
+
+fig, ax = plt.subplots(figsize=(12,8))
+
+plt.box(on=None)
+plt.grid(axis='y')
+ax.xaxis.set_ticks_position('none')
+ax.yaxis.set_ticks_position('none') 
+
+
+ax.add_collection(lc)
+
+for x, y, s in zip(dff['xm'], dff['value'], dff['carNum']):
+    plt.text(x, y, s, size=10)
+
+ax.figsize = (16,6)
+ax.autoscale()
+#ax.set_facecolor('xkcd:salmon')
+ax.margins(0.1)
+plt.gca().invert_yaxis()
+
+# TO DO - add lines to demarcate stages and days
+
+ymax, ymin = ax.get_ylim()
+xmax, xmin = ax.get_xlim()
+
+for _i, _xy in enumerate(xy):
+    plt.text((_xy[0]+_xy[1])/2, ymin-0.5, _i+1, size=10,
+            bbox=dict(facecolor='red', alpha=0.5))
+
+# -
+
+ax.get_xlim()
 
 
