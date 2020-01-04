@@ -201,35 +201,55 @@ def gapBar(df):
 # Tools to support pace calculations.
 
 # +
-def distToRun(ewrc, nextStage):
+def distToRun(ewrc, nextStage, expand=False):
     ''' Return the distance still to run over the rest of the rally. '''
     ewrc.get_itinerary()
+    if expand:
+        #return ewrc.df_itinerary.loc[nextStage:,:]['Distance'].cumsum().round(2)
+        return ewrc.df_itinerary.loc[nextStage:,:].loc[::-1, 'Distance'].cumsum().round(2)[::-1]
     return ewrc.df_itinerary.loc[nextStage:,:]['Distance'].values.sum().round(2)
 
-def stageDist(ewrc, stage):
-    ''' Return the distance to run over one or more stages. '''
+def stageDist(ewrc, stage, expand=False, from_next=False):
+    ''' Return the cumulative distance to run over one or more stages. '''
     ewrc.get_itinerary()
-    if isinstance(stage,list):
-        return ewrc.df_itinerary.loc[stage,:]['Distance'].sum().round(2)
-    return ewrc.df_itinerary.loc[stage,:]['Distance']
+    if expand:
+        #Give the accumulated distance over following stages
+        return ewrc.df_itinerary.loc[stage:,:][int(from_next):]['Distance'].cumsum().round(2)
+        #return ewrc.stage_distances.loc[stage:].cumsum().round(2)
+    return ewrc.df_itinerary.loc[stage,:]['Distance'].sum().round(2)
+    #return ewrc.stage_distances.loc[stage].sum().round(2)
 
 
-# -
+# + tags=["active-ipynb"]
+# stageDist(ewrc, 'SS3', expand=False), stageDist(ewrc, 'SS3', expand=True), \
+# stageDist(ewrc, 'SS3', expand=True, from_next=True)
 
+# + tags=["active-ipynb"]
+# distToRun(ewrc, 'SS3'), distToRun(ewrc, 'SS3', expand=True)
+
+# + tags=["active-ipynb"]
+# stageDist(ewrc, ['SS1', 'SS2'])
+
+# +
+def _rebased_pace_times(ewrc,rebase):
+    if rebase == 'overall_leader':
+        _df = ewrc.df_stages_rebased_to_overall_leader
+        rebase = None
+    elif rebase is None or rebase == 'stage_winner':
+        #We default to pace times rebased to stage winner
+        _df =  ewrc.df_stages_rebased_to_stage_winner
+        rebase = None
+    else:
+        _df = ewrc.df_stages
+    return _df, rebase
+    
 def paceReport(ewrc, rebase=None):
     ''' Time gained / lost per km on a stage. '''
 
     ewrc.set_rebased_times()
     ewrc.get_itinerary()
     
-    if rebase == 'overall_leader':
-        _df = ewrc.df_stages_rebased_to_overall_leader
-        rebase = None
-    elif rebase is None or rebase == 'stage_winner':
-        _df =  ewrc.df_stages_rebased_to_stage_winner
-        rebase = None
-    else:
-        _df = ewrc.df_stages
+    _df, rebase = _rebased_pace_times(ewrc,rebase)
 
     return (_df.apply(_rebaseTimes, bib=rebase, axis=0) / ewrc.stage_distances).round(3)
  
@@ -243,9 +263,35 @@ def paceReport(ewrc, rebase=None):
 
 # + tags=["active-ipynb"]
 # paceReport(ewrc, rebase='/entryinfo/42870-rallye-automobile-de-monte-carlo-2018/1642087/').head()
-# -
 
-def requiredPace(ewrc, rebase=None, remaining=False):
+# +
+def requiredStagePace(ewrc, stage, rebase=None, target_stage=None):
+    ''' Pace required from a particular stage to level up
+        by the end of each of the remaining stages or on a specified
+        target stage.
+        Report as the number of seconds required per km,
+        but not as a speed unless we have a target speed.
+    '''
+    ewrc.set_rebased_times()
+    ewrc.get_itinerary()
+    
+    #Get times for specified stage, rebased as necessary
+    _df, rebase = _rebased_pace_times(ewrc, rebase)
+    times = _df[int(str(stage).replace('SS',''))]
+    
+    # Get series of distances by stage to end of last stage
+    if target_stage is None:
+        dist = stageDist(ewrc, stage, expand=True, from_next=True)
+        _pace = dist.apply(lambda x: (times / x).round(2)).T
+        _pace.columns = [int(str(c).replace('SS','')) for c in _pace.columns]
+        return _pace
+
+    #What would it take to level up on just a specified stage
+    dist = ewrc.df_itinerary.loc[target_stage]['Distance']
+    #Return required pace
+    return (times/dist).round(2)
+
+def requiredPace(ewrc, rebase=None, within=None):
     ''' Pace required on competitive distance remaining.
         We can report this as the number of seconds required per km,
         but not as a speed unless we have a target speed.
@@ -254,7 +300,7 @@ def requiredPace(ewrc, rebase=None, remaining=False):
     ewrc.set_rebased_times()
     ewrc.get_itinerary()
     
-    if remaining:
+    if within=='remaining':
         #Calculate over the whole of the rally
         dist = ewrc.stage_distances.iloc[::-1].cumsum().iloc[::-1]
     else:
@@ -272,12 +318,18 @@ def requiredPace(ewrc, rebase=None, remaining=False):
 
 
 
-ewrc.stage_distances.iloc[::-1].cumsum().iloc[::-1]
+# + tags=["active-ipynb"]
+# requiredStagePace(ewrc, 'SS4', rebase=None, target_stage=None)
 
-requiredPace(ewrc).head()
+# + tags=["active-ipynb"]
+# requiredStagePace(ewrc, 'SS4', rebase=None, target_stage='SS6')
 
-requiredPace(ewrc, remaining=True).head()
+# + tags=["active-ipynb"]
+# requiredPace(ewrc).head()
 
+# + tags=["active-ipynb"]
+# requiredPace(ewrc, within='remaining').head()
+# -
 
 # ## Reporter
 
@@ -586,6 +638,18 @@ for _x in ewrc.stage_distances.cumsum():
     ax.axvline( x=_x, color='lightgrey', linestyle=':')
 
 ax.set_ylim( _ymax, _ymin-0.3 );
+
+# +
+# TO DO
+# pace chart like the above but with annotations for a particular driver
+# showing the pace deficit at which they would lose position to a particular person?
+# pace delta map? pace leveller map? For a particular next stage...
 # -
 
+# ## Pace Leveller Map
+#
+# For a particular selected (rebased) drive, a chart like the above with red and green bands that show pace that would level a driver compared to the selected driver on the next stage or N stages.
+#
 
+# +
+# Use: requiredStagePace()
