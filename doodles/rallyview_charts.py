@@ -347,7 +347,7 @@ def rally_report(ewrc, rebase, codes=None):
     df_allInOne, df_overall, df_stages, df_overall_pos = ewrc.get_stage_times()
     
     #codes provides the order and is taken from the stage order
-    if codes is None:
+    if codes is None or codes=='All':
         codes = pd.DataFrame(df_stages.index.tolist()).rename(columns={0:'entryId'}).set_index('entryId')
     else:
         codes = [codes] if isinstance(codes,str) else codes
@@ -401,7 +401,8 @@ def rally_report(ewrc, rebase, codes=None):
     #overallPosition: step line chart showing evolution of overall position
     
     #We need to pass a position table in
-    xx=_positionStep(df_overall_pos[xcols][:(overall_idx+1)], 'overall', codes)[['overallPosition']]
+    xx=_positionStep(df_overall_pos[xcols][:(overall_idx+1)], 
+                     'overall', codes)[['overallPosition']]
     tmp = pd.merge(tmp, xx, left_index=True, right_index=True)
 
     
@@ -425,7 +426,8 @@ def rally_report(ewrc, rebase, codes=None):
     df_stages_pos = df_stages.rank(method='min')
     df_stages_pos.columns = range(1,df_stages_pos.shape[1]+1)
     
-    xx=_positionStep(df_stages_pos[xcols][:(overall_idx+1)], 'stages', codes)['stagesPosition']
+    xx=_positionStep(df_stages_pos[xcols][:(overall_idx+1)],
+                     'stages', codes)['stagesPosition']
     tmp = pd.merge(tmp, xx, left_index=True, right_index=True)
 
     #Rebase
@@ -447,12 +449,14 @@ def rally_report(ewrc, rebase, codes=None):
     #print('w',tmp[-1:].index)
     
     df_rally_overall = ewrc.get_final()
-    tmp = pd.merge(tmp, df_rally_overall[['Pos']], how='left', left_index=True, right_index=True)
+    tmp = pd.merge(tmp, df_rally_overall[['Pos']],
+                   how='left', left_index=True, right_index=True)
     moveColumn(tmp, 'Pos', right_of='overallGapToLeader')
     moveColumn(tmp, 'Class', pos=0)
     #print('x',tmp[-1:].index)
     #tmp = pd.merge(tmp, df_rally_overall[['CarNum','Class Rank']], how='left', left_index=True, right_index=True)
-    tmp = pd.merge(tmp, df_rally_overall[['Class Rank']], how='left', left_index=True, right_index=True)
+    tmp = pd.merge(tmp, df_rally_overall[['Class Rank']],
+                   how='left', left_index=True, right_index=True)
     moveColumn(tmp, 'Class Rank', right_of='Class')
     moveColumn(tmp, 'carNum', pos=0)
     #disambiguate carnum
@@ -460,7 +464,8 @@ def rally_report(ewrc, rebase, codes=None):
     tmp = tmp.rename(columns={'carNum': 'CarNum'})
     #print('y',tmp[-1:].index)
     
-    tmp = pd.merge(tmp, df_allInOne[['driverNav','carModel']], how='left', left_index=True, right_index=True )
+    tmp = pd.merge(tmp, df_allInOne[['driverNav','carModel']],
+                   how='left', left_index=True, right_index=True )
     moveColumn(tmp, 'driverNav', pos=1)
     moveColumn(tmp, 'carModel', pos=2)
     #is this the slow bit?
