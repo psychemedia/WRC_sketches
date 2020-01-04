@@ -4,8 +4,8 @@
 #     text_representation:
 #       extension: .py
 #       format_name: light
-#       format_version: '1.4'
-#       jupytext_version: 1.2.1
+#       format_version: '1.5'
+#       jupytext_version: 1.3.0rc1
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -19,7 +19,7 @@
 # This module should now be regarded as deprecated. Instead use the rallyview package.
 
 import warnings
-warnings.warn('This module is now deprecated. Use the rallydatajunkie/rallyview module instead.')
+#warnings.warn('This module is now deprecated. Use the rallydatajunkie/rallyview module instead.')
 
 # ## Time handling Utilities
 
@@ -290,21 +290,30 @@ def setup_screenshot(driver,path):
 
 # Should we allow support different browsers for the screengrabs? eg Firefox as well as Chrome? OR is `force-device-scale-factor` chrome only (or maybe there is a Firefox equivalent?) What does it do, anyway?
 
+# +
+def init_browser():
+        opt = webdriver.ChromeOptions()
+        opt.add_argument('--force-device-scale-factor={}'.format(scale_factor))
+        if headless:
+            opt.add_argument('headless')
+
+        browser = webdriver.Chrome(options=opt)
+        return browser
+    
 def getTableImage(url, fn='dummy_table', basepath='.', path='.',
                   delay=None, scale_factor=2, height=420, width=800, headless=True,
-                  logging=False):
+                  logging=False, browser=None):
     ''' Render HTML file in browser and grab a screenshot. '''
     
     #options = Options()
     #options.headless = True
 
-    opt = webdriver.ChromeOptions()
-    opt.add_argument('--force-device-scale-factor={}'.format(scale_factor))
-    if headless:
-        opt.add_argument('headless')
-        
-    browser = webdriver.Chrome(options=opt)
-    
+    if browser is None:
+        browser = init_browser()
+        reset_browser = True
+    else:
+        reset_browser = False
+
     #browser.set_window_size(width, height)
     browser.get(url)
     #Give the map tiles some time to load
@@ -316,20 +325,31 @@ def getTableImage(url, fn='dummy_table', basepath='.', path='.',
     imgfile = '{}/{}'.format(os.getcwd(),imgfn)
     
     setup_screenshot(browser,imgfile)
-    browser.quit()
+    
+    if reset_browser:
+        browser.quit()
+        
     os.remove(imgfile.replace('.png','.html'))
     if logging:
         print("Save to {}".format(imgfn))
     return imgpath
 
 
+# -
 
-def getTablePNG(tablehtml,basepath='.', path='testpng', fnstub='testhtml', scale_factor=2):
+# Create a function that accepts some HTML, opens it in a browser, grabs a screenshot, saves the image and returns the filepath to the iage
+
+def getTablePNG(tablehtml, basepath='.', path='testpng',
+                fnstub='testhtml', scale_factor=2,
+                browser=None):
     ''' Save HTML table as file. '''
     if not os.path.exists(path):
         os.makedirs('{}/{}'.format(basepath, path))
-    fn='{cwd}/{basepath}/{path}/{fn}.html'.format(cwd=os.getcwd(), basepath=basepath, path=path,fn=fnstub)
+    fn='{cwd}/{basepath}/{path}/{fn}.html'.format(cwd=os.getcwd(), 
+                                                  basepath=basepath, path=path,
+                                                  fn=fnstub)
     tmpurl='file://{fn}'.format(fn=fn)
     with open(fn, 'w') as out:
         out.write(tablehtml)
-    return getTableImage(tmpurl, fnstub, basepath, path, scale_factor=scale_factor)
+    return getTableImage(tmpurl, fnstub, basepath, path,
+                         scale_factor=scale_factor, browser=browser)
