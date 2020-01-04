@@ -291,7 +291,7 @@ def setup_screenshot(driver,path):
 # Should we allow support different browsers for the screengrabs? eg Firefox as well as Chrome? OR is `force-device-scale-factor` chrome only (or maybe there is a Firefox equivalent?) What does it do, anyway?
 
 # +
-def init_browser():
+def init_browser(scale_factor=2, headless=True):
         opt = webdriver.ChromeOptions()
         opt.add_argument('--force-device-scale-factor={}'.format(scale_factor))
         if headless:
@@ -309,7 +309,8 @@ def getTableImage(url, fn='dummy_table', basepath='.', path='.',
     #options.headless = True
 
     if browser is None:
-        browser = init_browser()
+        browser = init_browser(scale_factor=scale_factor,
+                               headless=headless)
         reset_browser = True
     else:
         reset_browser = False
@@ -337,7 +338,7 @@ def getTableImage(url, fn='dummy_table', basepath='.', path='.',
 
 # -
 
-# Create a function that accepts some HTML, opens it in a browser, grabs a screenshot, saves the image and returns the filepath to the iage
+# Create a function that accepts some HTML, opens it in a browser, grabs a screenshot, saves the image and returns the filepath to the image.
 
 def getTablePNG(tablehtml, basepath='.', path='testpng',
                 fnstub='testhtml', scale_factor=2,
