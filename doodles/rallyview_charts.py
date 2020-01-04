@@ -536,6 +536,12 @@ from matplotlib import colors as mcolors
 from matplotlib import patches
 import numpy as np
 
+PACEMAX = 2
+
+
+_ymin = 0
+PACEMAX = PACEMAX+0.1
+
 N = len(set(dff['entryId'].cat.codes))+1
     
 lines = dff.apply(lambda x: [(x['x0'],x['value']),(x['x1'],x['value'])], axis=1).to_list()
@@ -554,25 +560,32 @@ ax.yaxis.set_ticks_position('none')
 ax.add_collection(lc)
 
 for x, y, s in zip(dff['xm'], dff['value'], dff['carNum']):
-    plt.text(x, y, s, size=10)
+    if y <= PACEMAX:
+        plt.text(x, y, s, size=10)
+    _ymin = y if y < _ymin else y
 
 ax.figsize = (16,6)
 ax.autoscale()
 #ax.set_facecolor('xkcd:salmon')
 ax.margins(0.1)
-plt.gca().invert_yaxis()
 
 # TO DO - add lines to demarcate stages and days
+
+plt.gca().invert_yaxis()
 
 ymax, ymin = ax.get_ylim()
 xmax, xmin = ax.get_xlim()
 
+_ymax = ymax if ymax < PACEMAX else PACEMAX
+
 for _i, _xy in enumerate(xy):
-    plt.text((_xy[0]+_xy[1])/2, ymin-0.5, _i+1, size=10,
+    plt.text((_xy[0]+_xy[1])/2, _ymin-0.5, _i+1, size=10,
             bbox=dict(facecolor='red', alpha=0.5))
 
-# -
+for _x in ewrc.stage_distances.cumsum():
+    ax.axvline( x=_x, color='lightgrey', linestyle=':')
 
-ax.get_xlim()
+ax.set_ylim( _ymax, _ymin-0.3 );
+# -
 
 
