@@ -485,7 +485,7 @@ def rally_report(ewrc, rebase, codes=None):
 # + tags=["active-ipynb"]
 # from IPython.display import HTML
 #
-# tmp, s2 = rally_report(ewrc, wREBASE, codes=None)
+# tmp, s2 = rally_report(ewrc, wREBASE, codes='All')
 # display(HTML(s2))
 
 # + tags=["active-ipynb"]
@@ -533,8 +533,6 @@ def rally_report(ewrc, rebase, codes=None):
 #     #codes = pd.DataFrame(carNums).rename(columns={0:'entryId'}).set_index('entryId')
 #
 #     #print(codes[-1:])
-#     if cl=='All':
-#         cl = None
 #     tmp, s2 = rally_report(ewrc, rebase, codes = cl)
 #     
 #     #display(HTML(s2))
@@ -602,6 +600,9 @@ def discrete_cmap(N, base_cmap=None):
     cmap_name = base.name + str(N)
     return base.from_list(cmap_name, color_list, N)
 
+
+# + tags=["active-ipynb"]
+# dff
 
 # + tags=["active-ipynb"]
 # _ymin = 0
@@ -776,6 +777,12 @@ pace_map(ewrc, PACEMAX=1)
 # showing the pace deficit at which they would lose position to a particular person?
 # pace delta map? pace leveller map? For a particular next stage...
 # -
+
+# ## Off the Pace Map
+#
+# Line chart showing accumulated time off stage winner.
+
+
 
 # ## Pace Leveller Map
 #
