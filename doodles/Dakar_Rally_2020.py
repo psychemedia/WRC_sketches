@@ -631,6 +631,63 @@ def get_long_annotated_timing_data(stage, vtype='car', timerank='time', kind='si
 # get_long_annotated_timing_data(STAGE, VTYPE, 'gap')[TIME].head()
 # -
 
+# ## Find the time between each waypoint
+#
+# That is, the time taken to get from one waypoint to the next. If we think of waypoints as splits, this is essentially a `timeInSplit` value. If we know this information, we can work out how much time each competitor made, or lost, relative to every other competitor in the same class, going between each waypoint.
+#
+# This means we may be able to work out which parts of the stage a particular competitor was pushing on, or had difficulties on.
+
+# +
+def _get_time_between_waypoints(timing_data_long):
+    ''' Find time taken to go from one waypoint to the next for each vehicle. '''
+    
+    #The timeInSplit is the time between waypoints.
+    #So find the diff between each consecutive waypoint time for each Crew
+    timing_data_long['timeInSplit'] = timing_data_long[['Crew','Time']].groupby('Crew').diff()
+
+    #Because we're using a diff(), the first row is set to NaN - there's nothing to diff to
+    #So use the time at the first split as the time from the start to the first waypoint.
+    timing_data_long.loc[timing_data_long.groupby('Crew')['timeInSplit'].head(1).index, 'timeInSplit'] = timing_data_long.loc[timing_data_long.groupby('Crew')['timeInSplit'].head(1).index,'Time']
+
+    #To finesse diff calculations on NaT, set diff with day!=0 to NaT
+    #This catches things where we get spurious times calculated as diff times against NaTs
+    timing_data_long.loc[timing_data_long['Time'].isna(),'timeInSplit'] = pd.NaT
+    timing_data_long.loc[timing_data_long['timeInSplit'].dt.days!=0,'timeInSplit'] = pd.NaT
+
+    #If there's been a reset, we can fill across
+    timing_data_long[['Time','timeInSplit']] = timing_data_long[['Time','timeInSplit']].fillna(method='ffill',axis=1)
+
+    #Find the total seconds for each split / waypoint duration
+    timing_data_long['splitS'] = timing_data_long['timeInSplit'].dt.total_seconds()
+    
+    return timing_data_long
+
+
+
+def get_timing_data_long_timeInSplit(stage, vtype='car', timerank='time'):
+    ''' For a stage, get the data in long form, including timeInSplit times. '''
+    
+    timing_data_long = get_long_annotated_timing_data(stage, vtype, timerank)[TIME]
+    timing_data_long = _get_time_between_waypoints(timing_data_long)
+    return timing_data_long
+
+
+# + tags=["active-ipynb"]
+# #Preview some data
+# timing_data_long_insplit = get_timing_data_long_timeInSplit(STAGE, VTYPE)
+# #timing_data_long_insplit[timing_data_long_insplit['Brand']=='PEUGEOT'].head()
+# timing_data_long_insplit.head()
+
+# + tags=["active-ipynb"]
+# timing_data_long = get_long_annotated_timing_data(STAGE, VTYPE)[TIME]
+# timing_data_long
+# #timing_data_long[timing_data_long['Brand']=='PEUGEOT'].head()
+# timing_data_long.head()
+
+# + tags=["active-ipynb"]
+# timing_data_long['Waypoint'].unique()
+# -
+
 # ## Saving the Data to a Database
 #
 # The data can be saved to a database directly in an unnormalised form, or we can tidy it up a bit and save it in a higher normal form.
@@ -734,6 +791,8 @@ def init_db(dbname=':memory', setup_sql='dakar.sql', clean=True):
 
 
 # + tags=["active-ipynb"]
+# stage=1
+#
 # tmp = get_stage_stats(STAGE).set_index('Special').T.reset_index()
 # tmp.rename(columns={'Leader at latest WP':'LeaderLatestWP', 'index':'Vehicle', "Latest WP":'LatestWP',
 #                     'At start':'AtStart', 'Nb at latest WP':'NumLatestWP' }, inplace=True)
@@ -796,8 +855,6 @@ def init_db(dbname=':memory', setup_sql='dakar.sql', clean=True):
 # ## ADD IN
 # #Way point pos
 #
-# tmp['WaypointPos'] = tmp.groupby(['Stage','Waypoint'])['GapInS'].rank(ascending=True,
-#                                                                        method='dense')
 #
 # waypoints = pd.DataFrame({'Waypoint':tmp['Waypoint'].unique().tolist()})
 #     
@@ -837,6 +894,17 @@ def init_db(dbname=':memory', setup_sql='dakar.sql', clean=True):
 # tmp.rename(columns={'_raw_':'Gap_raw'}, inplace=True)
 #
 # tmp
+
+# + tags=["active-ipynb"]
+# get_timing_data_long_timeInSplit(stage, VTYPE)[['Bib','Waypoint', 'timeInSplit','splitS']]
+
+# + tags=["active-ipynb"]
+# ### wtf is going on w/ waypoints #8?
+# tmp = pd.merge(tmp, get_timing_data_long_timeInSplit(stage, v)[['Bib','Waypoint', 'timeInSplit','splitS']],
+#                on=['Bib','Waypoint'])
+# tmp['WaypointPos'] = tmp.groupby(['Stage','Waypoint'])['splitS'].rank(ascending=True,
+#                                                                        method='dense')
+# tmp.head(3)
 # -
 
 def create_waypoints_db_df(stage, v, stagedists):
@@ -891,11 +959,15 @@ def create_waypoints_db_df(stage, v, stagedists):
     tmp = pd.merge(tmp, _typ_long(get_annotated_timing_data(stage,vtype=v, timerank='gap', kind='full')[TIME], '_raw_')[['Bib','WaypointOrder', '_raw_']],
                    on=['Bib','WaypointOrder'])
     tmp.rename(columns={'_raw_':'Gap_raw'}, inplace=True)
- 
+    
+    tmp = pd.merge(tmp, get_timing_data_long_timeInSplit(stage, v)[['Bib','Waypoint', 'splitS']],
+               on=['Bib','Waypoint'])
+    tmp['WaypointPos'] = tmp.groupby(['Stage','Waypoint'])['splitS'].rank(ascending=True,
+                                                                       method='dense')
     return tmp
 
-
-stage=1
+# + tags=["active-ipynb"]
+# stage=1
 
 # + tags=["active-ipynb"]
 # create_waypoints_db_df(stage, v, stagedists)
@@ -1042,63 +1114,6 @@ stage=1
 # That is, reset for the particular data config we defined at the top of the notebook.
 
 
-
-# ## Find the time between each waypoint
-#
-# That is, the time taken to get from one waypoint to the next. If we think of waypoints as splits, this is eesentially a `timeInSplit` value. If we know this information, we can work out how much time each competitor made, or lost, relative to every other competitor in the same class, going between each waypoint.
-#
-# This means we may be able to work out which parts of the stage a particular competitor was pushing on, or had difficulties on.
-
-# +
-def _get_time_between_waypoints(timing_data_long):
-    ''' Find time taken to go from one waypoint to the next for each vehicle. '''
-    
-    #The timeInSplit is the time between waypoints.
-    #So find the diff between each consecutive waypoint time for each Crew
-    timing_data_long['timeInSplit'] = timing_data_long[['Crew','Time']].groupby('Crew').diff()
-
-    #Because we're using a diff(), the first row is set to NaN - there's nothing to diff to
-    #So use the time at the first split as the time from the start to the first waypoint.
-    timing_data_long.loc[timing_data_long.groupby('Crew')['timeInSplit'].head(1).index, 'timeInSplit'] = timing_data_long.loc[timing_data_long.groupby('Crew')['timeInSplit'].head(1).index,'Time']
-
-    #To finesse diff calculations on NaT, set diff with day!=0 to NaT
-    #This catches things where we get spurious times calculated as diff times against NaTs
-    timing_data_long.loc[timing_data_long['Time'].isna(),'timeInSplit'] = pd.NaT
-    timing_data_long.loc[timing_data_long['timeInSplit'].dt.days!=0,'timeInSplit'] = pd.NaT
-
-    #If there's been a reset, we can fill across
-    timing_data_long[['Time','timeInSplit']] = timing_data_long[['Time','timeInSplit']].fillna(method='ffill',axis=1)
-
-    #Find the total seconds for each split / waypoint duration
-    timing_data_long['splitS'] = timing_data_long['timeInSplit'].dt.total_seconds()
-    
-    return timing_data_long
-
-
-
-def get_timing_data_long_timeInSplit(stage, vtype='car', timerank='time'):
-    ''' For a stage, get the data in long form, including timeInSplit times. '''
-    
-    timing_data_long = get_long_annotated_timing_data(stage, vtype, timerank)[TIME]
-    timing_data_long = _get_time_between_waypoints(timing_data_long)
-    return timing_data_long
-
-
-# + tags=["active-ipynb"]
-# #Preview some data
-# timing_data_long_insplit = get_timing_data_long_timeInSplit(STAGE, VTYPE)
-# #timing_data_long_insplit[timing_data_long_insplit['Brand']=='PEUGEOT'].head()
-# timing_data_long_insplit.head()
-
-# + tags=["active-ipynb"]
-# timing_data_long = get_long_annotated_timing_data(STAGE, VTYPE)[TIME]
-# timing_data_long
-# #timing_data_long[timing_data_long['Brand']=='PEUGEOT'].head()
-# timing_data_long.head()
-
-# + tags=["active-ipynb"]
-# timing_data_long['Waypoint'].unique()
-# -
 
 # ## Rebase relative to driver
 #
