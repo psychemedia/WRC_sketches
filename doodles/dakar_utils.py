@@ -108,7 +108,7 @@ def sparkline2(data, figsize=(2, 0.5), colband=(('red','green'),('red','green'))
     #data = [0 if pd.isnull(d) else d for d in data]
     
     fig, ax = plt.subplots(1, 1, figsize=figsize, **kwargs)
-    
+
     if typ=='bar':
         color=[ colband[0][0] if c<0 else colband[0][1] for c in data  ]
         ax.plot(range(len(data)), [0]*len(data), linestyle='-', color='lightgrey')
