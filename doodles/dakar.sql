@@ -86,6 +86,7 @@ CREATE TABLE "waypoints" (
     "GapInS" INTEGER,
     "WaypointDist" INTEGER,
     "VehicleType" TEXT,
+    "splitS" INTEGER,
     PRIMARY KEY ("Year", "Stage", "Bib", "Waypoint")
 );
 
