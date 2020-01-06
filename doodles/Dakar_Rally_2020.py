@@ -504,12 +504,18 @@ def get_timing_data(stage,vtype='car', timerank='time', kind='simple'):
 # data[ COUNTRIES ].head()
 # -
 
-def get_annotated_timing_data(stage,vtype='car', timerank='time', kind='simple'):
+# If we have a col with a lot of missing timing data, should we drop it early? A downside of this is we are working with live data, there is likely to be lots of missing data so we can't run live tables? The following `get_annotated_timing_data()` definition takes the *delete cols with missing data* approach...
+
+def get_annotated_timing_data(stage, vtype='car',
+                              timerank='time', kind='simple', MAXMISSING=10):
     ''' Return a timing dataset that's ready to use. '''
     
     df = get_timing_data(stage, vtype, timerank, kind)
     if not df:
         return []
+    
+    #TEST
+    df[TIME].dropna(thresh=MAXMISSING,axis=1,inplace=True)
     
     col00 = [c for c in df[TIME].columns if c.startswith('00_')][0]
     
@@ -524,7 +530,7 @@ def get_annotated_timing_data(stage,vtype='car', timerank='time', kind='simple')
 
 # + tags=["active-ipynb"]
 # t_data = get_annotated_timing_data(STAGE,vtype=VTYPE, timerank='time')[TIME]
-# t_data.head()
+# t_data.head(10)
 
 # + tags=["active-ipynb"]
 # not_timing_cols = ['Pos','Road Position','Refuel','Bib','Crew','Brand']
@@ -636,6 +642,8 @@ def get_long_annotated_timing_data(stage, vtype='car', timerank='time', kind='si
 # That is, the time taken to get from one waypoint to the next. If we think of waypoints as splits, this is essentially a `timeInSplit` value. If we know this information, we can work out how much time each competitor made, or lost, relative to every other competitor in the same class, going between each waypoint.
 #
 # This means we may be able to work out which parts of the stage a particular competitor was pushing on, or had difficulties on.
+
+# There's an issue with the following: if there is missing data at a waypoint, then the `nan` causes issues with the calculations. One fix might be to try to drop a column if there's lots of missing data in it, which is the approach used in `get_annotated_timing_data()`; another might be to try to fill just the occasional `nan` across from the previous stage; this would then give a 0 time from one stage to another which we might be able to catch as some sort of exception?
 
 # +
 def _get_time_between_waypoints(timing_data_long):
@@ -1148,10 +1156,10 @@ def rebaseWaypointTimes(times, bib=None, col='splitS'):
 
 # + tags=["active-ipynb"]
 # timing_data_long_min = rebaseWaypointTimes( timing_data_long , REBASER, 'TimeInS')
-# -timing_data_long_min.reset_index().pivot('Bib','Waypoint','rebased').head()
+# -timing_data_long_min.reset_index().pivot('Bib','Waypoint','rebased').head(15)
 
 # + tags=["active-ipynb"]
-# rebaseWaypointTimes(timing_data_long_insplit,REBASER).head()
+# rebaseWaypointTimes(timing_data_long_insplit,REBASER).head(10)
 # -
 
 def pivotRebasedSplits(rebasedSplits):
@@ -1171,7 +1179,7 @@ def pivotRebasedSplits(rebasedSplits):
 
 # + tags=["active-ipynb"]
 # tmp = pivotRebasedSplits(rebaseWaypointTimes(timing_data_long_insplit,REBASER))
-# tmp.head()
+# tmp.head(3)
 
 # + tags=["active-ipynb"]
 # #top10 = driver_data[(driver_data['Pos']>=45) & (driver_data['Pos']<=65)]
