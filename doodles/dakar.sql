@@ -24,7 +24,6 @@ CREATE TABLE "vehicles" (
 );
 
 
-
 CREATE TABLE "stagestats" (
     "Year" INTEGER,
     "Stage" INTEGER,
@@ -40,7 +39,8 @@ CREATE TABLE "stagestats" (
     "BibLatestWP" INTEGER,
     "NameLatestWP" TEXT,
     "Vehicle" TEXT,
-    PRIMARY KEY ("Year","Stage")
+    "StageDist" INTEGER,
+    PRIMARY KEY ("Year","Stage","Vehicle")
 );
 
 
@@ -59,17 +59,17 @@ CREATE TABLE "ranking" (
     "GapInS" INTEGER,
     "Penalty_raw" TEXT,
     "PenaltyInS" INTEGER,
-    PRIMARY KEY ("Year","Stage", "Type", "Bib")
+    PRIMARY KEY ("Year", "Stage", "Type", "Bib")
 );
 
-CREATE TABLE "stagemeta" (
-    "Year" INTEGER,
-    "Stage" INTEGER,
-    "Bib" INTEGER,
-    "RoadPos" REAL,
-    "Refuel" TEXT,
-    PRIMARY KEY ("Year","Stage","Bib")
-);
+--CREATE TABLE "stagemeta" (
+--    "Year" INTEGER,
+--    "Stage" INTEGER,
+--    "Bib" INTEGER,
+--    "RoadPos" REAL,
+--    "Refuel" TEXT,
+--    PRIMARY KEY ("Year","Stage","Bib")
+--);
 
 CREATE TABLE "waypoints" (
     "Year" INTEGER,
@@ -78,11 +78,14 @@ CREATE TABLE "waypoints" (
     "Pos" INTEGER,
     "Waypoint" TEXT,
     "WaypointOrder" INTEGER,
-    "WaypointRank" INTEGER,
+    "WaypointRank" INTEGER, --rank thus far on the stage
+    "WaypointPos" INTEGER, --performance between two splits
     "Time_raw" TEXT,
     "TimeInS" INTEGER,
     "Gap_raw" TEXT,
     "GapInS" INTEGER,
+    "WaypointDist" INTEGER,
+    "VehicleType" TEXT,
     PRIMARY KEY ("Year", "Stage", "Bib", "Waypoint")
 );
 
