@@ -12,7 +12,11 @@ jupyter:
     name: python3
 ---
 
+<!-- #region -->
 # eWRC Scraper
+
+
+?? deprecated in favour of ewrc_api.py and rallyview_charts.py??
 
 `ewrc-results.com` is a comprehensive rally results service.
 
@@ -21,6 +25,7 @@ Let's see if we can build a data downloader and generate some reports from their
 Simple js API that filters on WRC...: https://github.com/nathanjliu/WRC-API
 
 (For Tendring, there were also results at https://www.rallies.info/res.php?e=296 .)
+<!-- #endregion -->
 
 ```python
 import pandas as pd
@@ -357,6 +362,8 @@ penalties
 
 The entry list provides the basis for a whole set of metadata.
 
+For some rallies, such as WRC rallies, strating order lists for each leg of the rally are also available.
+
 ```python
 entrylist_url = 'https://www.ewrc-results.com/entries/54762-corbeau-seats-rally-tendring-clacton-2019/'
 entrylist_url = "https://www.ewrc-results.com/entries/42870-rallye-automobile-de-monte-carlo-2018/"
@@ -390,6 +397,10 @@ if soup.find('h2', text='Starting order'):
     print('Starting order available...')
 ```
 
+```python
+
+```
+
 ## Itinerary
 
 For WRC at least, the itinerary breaks out the legs, which is useful when we are looking at statistics that relate to starting order / road order (RO) as obtained from the entry list.
@@ -412,22 +423,25 @@ event_dist
 from numpy import nan
 
 itinerary_df = dfify( soup.find('div', {'class':'timetable'}).find('table') )
-itinerary_df.columns = ['Stage','Name', 'Distance', 'Date', 'Time']
+itinerary_df.columns = ['Stage','Name', 'distance', 'Date', 'Time']
 itinerary_df['Leg'] = [nan if 'leg' not in str(x) else str(x).replace('. leg','') for x in itinerary_df['Stage']]
 itinerary_df['Leg'] = itinerary_df['Leg'].fillna(method='ffill')
 itinerary_df['Date'] = itinerary_df['Date'].fillna(method='ffill')
 
-itinerary_leg_totals = itinerary_df[itinerary_df['Name'].str.contains("Leg total")][['Leg', 'Distance']].reset_index(drop=True)
+itinerary_leg_totals = itinerary_df[itinerary_df['Name'].str.contains("Leg total")][['Leg', 'distance']].reset_index(drop=True)
 
 full_itinerary_df = itinerary_df[~itinerary_df['Name'].str.contains(". leg")]
 full_itinerary_df = full_itinerary_df[~full_itinerary_df['Date'].str.contains(" km")]
 full_itinerary_df = full_itinerary_df.fillna(method='bfill', axis=1)
 
 #Legs may not be identified but we may want to identify services
-full_itinerary_df['Service'] = [ 'Service' in i for i in full_itinerary_df['Distance'] ]
+full_itinerary_df['Service'] = [ 'Service' in i for i in full_itinerary_df['distance'] ]
 full_itinerary_df['Service_Num'] = full_itinerary_df['Service'].cumsum()
 full_itinerary_df.reset_index(drop=True, inplace=True)
 itinerary_df = full_itinerary_df[~full_itinerary_df['Service']].reset_index(drop=True)
+
+itinerary_df[['Distance', 'Distance_unit']] = itinerary_df['distance'].str.extract(r'(?P<Distance>[^\s]*)\s+(?P<Distance_unit>.*)?')
+itinerary_df['Distance'] = itinerary_df['Distance'].astype(float)
 
 itinerary_df
 ```
@@ -657,6 +671,20 @@ wo = __import__("WRC Overall")
 <!-- #endraw -->
 
 ```python
+#Can we improve performance?
+#https://www.ellicium.com/python-multiprocessing-pool-process/
+from multiprocessing import cpu_count
+
+num_cores = cpu_count()
+
+#https://towardsdatascience.com/how-i-learned-to-love-parallelized-applies-with-python-pandas-dask-and-numba-f06b0b367138
+#!pip3 install dask
+#!pip3 install cloudpickle
+from dask import dataframe as dd
+
+```
+
+```python
 import io
 
 #Dask may require dataframe spec
@@ -680,20 +708,6 @@ def schema_df_drop(df):
         by dropping all data from the existing dataframe.
     '''
     return df.drop(df.index)
-
-```
-
-```python
-#Can we improve performance?
-#https://www.ellicium.com/python-multiprocessing-pool-process/
-from multiprocessing import cpu_count
-
-num_cores = cpu_count()
-
-#https://towardsdatascience.com/how-i-learned-to-love-parallelized-applies-with-python-pandas-dask-and-numba-f06b0b367138
-#!pip3 install dask
-#!pip3 install cloudpickle
-from dask import dataframe as dd
 
 ```
 
@@ -743,6 +757,7 @@ def _gapToLeaderBar(Xtmpq, typ, stages=None, milliseconds=True, flip=True, items
 
 import time
 def _positionStep(Xtmpq, typ, stages=None, items=None):
+    # stages is not used?
     Xtmpq.columns = ['SS_{}_{}_pos'.format(c, typ) for c in Xtmpq.columns]
     k = '{}Position'.format(typ)
     _tmp='tmp'
@@ -999,7 +1014,7 @@ df.columns
 ```python
 #Reporter
 
-def rally_report(codes, rebase):
+def rally_report(df, codes, rebase):
     #rebase is the index value
     #tmp = pd.merge(codes, df_rally_overall[['Class']], how='left', left_index=True, right_index=True)
     tmp = pd.merge(codes, df[['carNum']], how='left', left_index=True, right_index=True)
@@ -1080,7 +1095,12 @@ def rally_report(codes, rebase):
 ```
 
 ```python
-tmp, s2 = rally_report(codes, wREBASE)
+stages
+
+```
+
+```python
+tmp, s2 = rally_report(df, codes, wREBASE)
 display(HTML(s2))
 ```
 
@@ -1103,7 +1123,7 @@ codes
 ```
 
 ```python
-tmp, s2 = rally_report(codes, wREBASE)
+tmp, s2 = rally_report(df, codes, wREBASE)
 _ = dakar.getTablePNG(s2, fnstub='overall_{}_'.format(wREBASE.replace('/','_')),scale_factor=2)
 Image(_)
 ```
@@ -1128,14 +1148,14 @@ from ipywidgets import interact
 
 classes = widgets.Dropdown(
     #Omit car 0
-    options=['All']+df_entrylist[df_entrylist['CarNum']!='#0']['Class'].unique().tolist(),
+    options=['All']+df_entrylist[df_entrylist['CarNum']!='#0']['Class'].dropna().unique().tolist(),
     value='All', description='Class:', disabled=False )
 
 def carsInClass(qclass):
     #Can't we also pass a dict of key/vals to the widget?
     #Omit car 0
     if qclass=='All':
-        return df_entrylist[df_entrylist['CarNum']!='#0']['carNum'].to_list()
+        return df_entrylist[df_entrylist['CarNum']!='#0']['carNum'].dropna().to_list()
     return df_entrylist[df_entrylist['CarNum']!='#0' & df_entrylist['Class']==qclass]['carNum'].to_list()
 
 carNum = widgets.Dropdown(
