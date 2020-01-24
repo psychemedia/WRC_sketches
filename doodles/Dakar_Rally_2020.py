@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.3.0rc1
+#       jupytext_version: 1.3.1
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -35,7 +35,7 @@ from numpy import nan as NaN
 # -
 
 import requests_cache
-requests_cache.install_cache('dakar_cache', backend='sqlite')
+requests_cache.install_cache('dakar_cache', backend='sqlite',  expire_after=300)
 
 
 # Timing data is provided in two forms:
@@ -420,7 +420,7 @@ def get_timing_data(stage,vtype='car', timerank='time', kind='simple'):
     
     df[TIME] = get_refuel_status(df[TIME])
     return _get_timing(df, typ=TIME, kind=kind)
-    
+
 
 
 # + tags=["active-ipynb"]
@@ -566,7 +566,7 @@ def get_driver_data(stage, topN=None, vtype='car',):
 def _timing_long(df, nodss=True):
     ''' Cast timing data to long data frame. '''
     df = pd.melt(df,
-                 id_vars=[c for c in df.columns if not any(_c in c for _c in ['dss','wp','ass', 'km'])],
+                 id_vars=[c for c in df.columns if not any(_c in c for _c in ['dss','wp','ass', 'km', 'pk'])],
                  var_name='Waypoint', value_name='Time')
 
     if nodss:
@@ -644,11 +644,14 @@ def get_long_annotated_timing_data(stage, vtype='car', timerank='time', kind='si
 # This means we may be able to work out which parts of the stage a particular competitor was pushing on, or had difficulties on.
 
 # There's an issue with the following: if there is missing data at a waypoint, then the `nan` causes issues with the calculations. One fix might be to try to drop a column if there's lots of missing data in it, which is the approach used in `get_annotated_timing_data()`; another might be to try to fill just the occasional `nan` across from the previous stage; this would then give a 0 time from one stage to another which we might be able to catch as some sort of exception?
+#
+# In `_get_time_between_waypoints()` we go even more defensive and drop NA time rows from waypoints.
 
 # +
 def _get_time_between_waypoints(timing_data_long):
     ''' Find time taken to go from one waypoint to the next for each vehicle. '''
     
+    timing_data_long.dropna(subset=['TimeInS'], inplace=True)
     #The timeInSplit is the time between waypoints.
     #So find the diff between each consecutive waypoint time for each Crew
     timing_data_long['timeInSplit'] = timing_data_long[['Crew','Time']].groupby('Crew').diff()
@@ -770,7 +773,7 @@ import sqlite3
 # +
 import os
 
-def init_db(dbname=':memory', setup_sql='dakar.sql', clean=True):
+def init_db(dbname='file::memory:', setup_sql='dakar.sql', clean=True):
     
     if clean and os.path.exists(dbname):
         #!rm $dbname
@@ -810,7 +813,7 @@ def init_db(dbname=':memory', setup_sql='dakar.sql', clean=True):
 # tmp['Stage'] = stage
 # tmp['Year'] = YEAR
 #
-# tmp['StageDist'] = tmp['Special'].str.extract(r'(?P<StageDist>.*)km').astype(int)
+# tmp['StageDist'] = tmp['Special'].str.extract(r'(?P<StageDist>.*)[pkm]{2}').astype(int)
 #
 # stagedists = tmp[['Stage', 'Vehicle', 'StageDist']]
 # tmp
@@ -820,6 +823,8 @@ def init_db(dbname=':memory', setup_sql='dakar.sql', clean=True):
 
 # + tags=["active-ipynb"]
 # ### wtf is going on w/ waypoints #1?
+#
+# v=VTYPE
 #
 # tmp = get_long_annotated_timing_data(stage,vtype=v, timerank='time')[TIME]
 # tmp['Year'] = YEAR
@@ -866,7 +871,7 @@ def init_db(dbname=':memory', setup_sql='dakar.sql', clean=True):
 #
 # waypoints = pd.DataFrame({'Waypoint':tmp['Waypoint'].unique().tolist()})
 #     
-# waypoints['WaypointDist'] = waypoints['Waypoint'].str.extract(r'.*_km(?P<Change>.*)?')
+# waypoints['WaypointDist'] = waypoints['Waypoint'].str.extract(r'.*_[pkm]{2}(?P<Change>.*)?')
 # stagedists[stagedists['Vehicle'].str.lower()==v]['StageDist'].iloc[0]
 # #tmp
 # waypoints
@@ -946,7 +951,7 @@ def create_waypoints_db_df(stage, v, stagedists):
     
     waypoints = pd.DataFrame({'Waypoint':tmp['Waypoint'].unique().tolist()})
     
-    waypoints['WaypointDist'] = waypoints['Waypoint'].str.extract(r'.*_km(?P<Change>.*)?')
+    waypoints['WaypointDist'] = waypoints['Waypoint'].str.extract(r'.*_[pkm]{2}(?P<Change>.*)?')
     stagedists[stagedists['Vehicle'].str.lower()==v]['StageDist'].iloc[0]
 
     waypoints.loc[waypoints['Waypoint'].str.contains('_ass'),'WaypointDist'] = stagedists[stagedists['Vehicle'].str.lower()==v]['StageDist'].iloc[0]
@@ -982,15 +987,11 @@ def create_waypoints_db_df(stage, v, stagedists):
 
 # + tags=["active-ipynb"]
 # conn, db = init_db('dakar_2020.db')
-#
-# t_vehicles = db["vehicles"]
-# t_ranking = db["ranking"]
-# t_waypoints = db["waypoints"]
-# #t_stagemeta = db["stagemeta"]
-# t_stagestats = db["stagestats"]
 
 # + tags=["active-ipynb"]
 # # 'Year', 'Bib' is a sensible common key for several things?
+#
+# STAGESTATS = True
 #
 # for stage in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]:
 #     
@@ -1003,13 +1004,11 @@ def create_waypoints_db_df(stage, v, stagedists):
 #     tmp['BibLatestWP'] = tmp['BibLatestWP'].astype(int)
 #     tmp['Stage'] = stage
 #     tmp['Year'] = YEAR
-#     tmp['StageDist'] = tmp['Special'].str.extract(r'(?P<StageDist>.*)km').astype(int)
+#     tmp['StageDist'] = tmp['Special'].str.extract(r'(?P<StageDist>.*)[pkm]{2}').astype(int)
 #     
-#     try:
-#         t_stagestats.upsert_all(tmp.to_dict(orient='records'),
+#     if STAGESTATS:
+#         db["stagestats"].upsert_all(tmp.to_dict(orient='records'),
 #                                 pk=("Year","Stage","Vehicle"))
-#     except:
-#         t_stagestats.insert_all(tmp.to_dict(orient='records'))
 #
 #     stagedists = tmp[['Stage', 'Vehicle', 'StageDist']]
 #     
@@ -1025,11 +1024,9 @@ def create_waypoints_db_df(stage, v, stagedists):
 #         if tmp.empty:
 #             _running=False
 #             continue
-#         try:
-#             t_waypoints.upsert_all(tmp.to_dict(orient='records'),
+#         
+#         db["waypoints"].upsert_all(tmp.to_dict(orient='records'),
 #                                    pk=("Year", "Stage", "Bib", "Waypoint"))
-#         except:
-#             t_waypoints.insert_all(tmp.to_dict(orient='records'))
 #             
 #         for ranking in RANKING_:  
 #             tmp = get_ranking_data(stage,vtype=v, timerank=ranking, kind='raw')[RANK]
@@ -1043,24 +1040,17 @@ def create_waypoints_db_df(stage, v, stagedists):
 #             tmp.drop(_tcols, axis=1, inplace=True)
 #             
 #             tmp['VehicleType'] = v
-#             try:
-#                 t_ranking.upsert_all(tmp.to_dict(orient='records'),
+#             db["ranking"].upsert_all(tmp.to_dict(orient='records'),
 #                                      pk=("Year", "Stage", "Type", "Bib"))
-#             except:
-#                 t_ranking.insert_all(tmp.to_dict(orient='records'))
 #         
 #         #Although derived from either ranking table, only need to collect this once
 #         tmp = tmp[['Year','Bib','VehicleType', 'Brand']]
 #
-#         try:
-#             t_vehicles.upsert_all(tmp.to_dict(orient='records'),
-#                                   pk=("Year","Bib"))
-#         except:
-#             t_vehicles.insert_all(tmp.to_dict(orient='records'))
+#         #db["vehicles"].upsert_all(tmp.to_dict(orient='records'), pk=("Year","Bib"))
 #             
 #     if not _running:
 #         print("I guess we've not got that far yet...")
-#         break
+#         #break
 # -
 
 # ## Report Generation
@@ -1648,7 +1638,7 @@ def getCurrPrevOverallRank(stage, vtype='car', rebase=None):
     curr['Overall Gap'] = curr['Gap'].dt.total_seconds()
     if stage>1:
         prev = get_ranking_data(stage-1, vtype,timerank='general')[RANK]
-        prev.rename(columns={'Overall Position':'Previous Overall Position',
+        prev.rename(columns={'Pos':'Previous Overall Position',
                              'Time':'Previous Time',
                              'Gap':'Previous Gap'}, inplace=True)
         prev['Previous'] = prev['Previous Gap'].dt.total_seconds()
