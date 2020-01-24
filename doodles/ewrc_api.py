@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.3.0rc1
+#       jupytext_version: 1.3.1
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -16,6 +16,10 @@
 # # eWRC API
 #
 # Simple Python API for eWRC results.
+#
+# Initially built for pulling results at the end of a rally.
+#
+# What do we need to do to make it work live too, eg to force refesh on certain stages?
 
 import pandas as pd
 import re
@@ -98,6 +102,8 @@ def get_stage_result_links(stub):
 # + tags=["active-ipynb"]
 # #url='https://www.ewrc-results.com/results/54762-corbeau-seats-rally-tendring-clacton-2019/'
 # rally_stub = '54762-corbeau-seats-rally-tendring-clacton-2019'
+# rally_stub='61961-mgj-engineering-brands-hatch-winter-stages-2020'
+# rally_stub='59972-rallye-automobile-de-monte-carlo-2020'
 # tmp = get_stage_result_links(rally_stub)
 # tmp
 # -
@@ -124,19 +130,30 @@ from parse import parse
 def get_stage_results(stub):
     soup = soupify('{}{}'.format(base_url, stub))
     
-    pattern = 'SS{stage} {name} - {dist:f} km - {datetime}'
     details = soup.find('h4').text
+    
+    pattern = 'SS{stage} {name} - {dist:f} km - {datetime}'
     parse_result = parse(pattern, details)
-
+    if parse_result is None:
+        pattern = 'SS{stage} - {dist:f} km'
+        parse_result = parse(pattern, details)
+        print('s:',details,parse_result)
     stage_num = f"SS{parse_result['stage']}"
-    stage_name = parse_result['name']
+  
+    if 'name' in parse_result:
+        stage_name = parse_result['name']
+    else:
+         stage_name = stage_num
+    
     stage_dist =  parse_result['dist']
-    stage_datetime = parse_result['datetime']
-
+    if 'datetime' in parse_result:
+        stage_datetime = parse_result['datetime']
+    else:
+        stage_datetime = None
+    
     tables = soup.find_all('table')
     stage_result = tables[0]
     stage_overall = tables[1]
-    
     
     # Stage Result
     df_stage_result = dfify(stage_result)
@@ -207,6 +224,8 @@ def get_stage_results(stub):
 # + tags=["active-ipynb"]
 # partial_stub = '/results/54762-corbeau-seats-rally-tendring-clacton-2019/'
 # partial_stub='/results/42870-rallye-automobile-de-monte-carlo-2018/'
+# partial_stub='/results/61961-mgj-engineering-brands-hatch-winter-stages-2020/'
+# partial_stub='/results/59972-rallye-automobile-de-monte-carlo-2020/'
 # #stub = tmp['SS3']
 # stage_result, stage_overall, stage_retirements, stage_penalties = get_stage_results(partial_stub)
 
@@ -225,7 +244,7 @@ def get_stage_results(stub):
 
 from parse import parse
 
-def get_stage_times(stub):
+def get_stage_times(stub, dropnarow=True):
     url='https://www.ewrc-results.com/times/{stub}/'.format(stub=stub)
 
     soup = soupify(url)
@@ -260,8 +279,13 @@ def get_stage_times(stub):
         retired = '<span class="r8_bold_red">R</span>' in str(g[NAME_SUBGROUP])
         carNum = carNumMatch(g[NAME_SUBGROUP]).group('carNum')
         carModel = carModelMatch(g[NAME_SUBGROUP]).group('carModel')
-        classification = pd.to_numeric(g[NAME_SUBGROUP].find('span').text.replace('R','').strip('').strip('.'))
-
+        
+        #TO DO - may be None?
+        try:
+            classification = pd.to_numeric(g[NAME_SUBGROUP].find('span').text.replace('R','').strip('').strip('.'))
+        except:
+            classification = ''
+        
         stagetimes = []
         overalltimes = []
         penalties=[]
@@ -283,7 +307,11 @@ def get_stage_times(stub):
                     if penalty:
                         #This really needs parsing into a time; currently of form eg 0:10
                         penalty = penalty['penalty']
-                    p = int(p[-2].split('.')[0])
+                    # TO DO - what if we have a replacement? Error codes?
+                    if '>R<' in p[-1]:
+                        p = 0
+                    else:
+                        p = int(p[-2].split('.')[0])
                 else:
                     p = int(p[-1].strip('.'))
                 positions.append(p)
@@ -322,6 +350,22 @@ def get_stage_times(stub):
         df_overall[ss] = df_overall[ss].apply(getTime)
         df_stages[ss] = df_stages[ss].apply(getTime)
 
+    # TO DO
+    #We shouldn't really have to do this - why are there duplicates?
+    #We seem to be appending rows over and over for each stage?
+    df_allInOne=df_allInOne.reset_index().drop_duplicates(subset='entryId').set_index('entryId')
+    df_overall=df_overall.reset_index().drop_duplicates(subset='entryId').set_index('entryId')
+    df_stages=df_stages.reset_index().drop_duplicates(subset='entryId').set_index('entryId')
+    df_overall_pos=df_overall_pos.reset_index().drop_duplicates(subset='entryId').set_index('entryId')
+    df_stages_pos=df_stages_pos.reset_index().drop_duplicates(subset='entryId').set_index('entryId')
+    
+    if dropnarow:
+        df_allInOne = df_allInOne.dropna(how='all', axis=1)
+        df_overall = df_overall.dropna(how='all', axis=1)
+        df_stages = df_stages.dropna(how='all', axis=1)
+        df_overall_pos = df_overall_pos.dropna(how='all', axis=1)
+        df_stages_pos = df_stages_pos.dropna(how='all', axis=1)
+        
     return df_allInOne, df_overall, df_stages, df_overall_pos, df_stages_pos
 
 
@@ -331,6 +375,9 @@ def get_stage_times(stub):
 
 # + tags=["active-ipynb"]
 # rally_stub = '42870-rallye-automobile-de-monte-carlo-2018'
+# rally_stub='61961-mgj-engineering-brands-hatch-winter-stages-2020'
+# rally_stub='59972-rallye-automobile-de-monte-carlo-2020'
+#
 # df_allInOne, df_overall, df_stages, \
 #     df_overall_pos, df_stages_pos = get_stage_times(rally_stub)
 
@@ -379,6 +426,9 @@ def get_final(stub):
     
 
 
+
+# + tags=["active-ipynb"]
+# get_final(rally_stub)
 # -
 
 # ## Itinerary
@@ -396,7 +446,10 @@ def get_itinerary(stub):
     itinerary_df['Leg'] = [nan if 'leg' not in str(x) else str(x).replace('. leg','') for x in itinerary_df['Stage']]
     itinerary_df['Leg'] = itinerary_df['Leg'].fillna(method='ffill')
     itinerary_df['Date'] = itinerary_df['Date'].fillna(method='ffill')
-
+    
+    #What if we have no stage name?
+    itinerary_df['Name'].fillna('', inplace=True)
+    
     itinerary_leg_totals = itinerary_df[itinerary_df['Name'].str.contains("Leg total")][['Leg', 'distance']].reset_index(drop=True)
 
     full_itinerary_df = itinerary_df[~itinerary_df['Name'].str.contains(". leg")]
@@ -414,6 +467,7 @@ def get_itinerary(stub):
     
     itinerary_df[['Distance', 'Distance_unit']] = itinerary_df['distance'].str.extract(r'(?P<Distance>[^\s]*)\s+(?P<Distance_unit>.*)?')
     itinerary_df['Distance'] = itinerary_df['Distance'].astype(float)
+
     itinerary_df.set_index('Stage', inplace=True)
 
     return event_dist, itinerary_leg_totals, itinerary_df, full_itinerary_df
@@ -422,6 +476,8 @@ def get_itinerary(stub):
 # + tags=["active-ipynb"]
 # stub='54762-corbeau-seats-rally-tendring-clacton-2019'
 # stub='42870-rallye-automobile-de-monte-carlo-2018'
+# #stub='61961-mgj-engineering-brands-hatch-winter-stages-2020'
+# stub='59972-rallye-automobile-de-monte-carlo-2020'
 # event_dist, itinerary_leg_totals, itinerary_df, full_itinerary_df = get_itinerary(stub)
 
 # + tags=["active-ipynb"]
@@ -590,6 +646,7 @@ class EWRC:
         if stages:
             links = self.get_stage_result_links()
             if 'all' in stages:
+                print('all')
                 stages = [k for k in links.keys() if 'leg' not in k]
             elif 'final' in stages or 'last' in stages:
                 stages = [k for k in links.keys() if 'leg' not in k][-1]
@@ -619,17 +676,35 @@ class EWRC:
 # ewrc.get_stage_results()
 
 # + tags=["active-ipynb"]
-# ewrc.get_stage_results('all')
+# ewrc.get_stage_results('SS1')[0]
+
+# + tags=["active-ipynb"]
+# ewrc.get_stage_results('SS1')[1]
 
 # + tags=["active-ipynb"]
 # ewrc.set_rebased_times()
 # display(ewrc.df_stages_rebased_to_overall_leader)
 
 # + tags=["active-ipynb"]
+# ewrc.get_stage_results('SS1')[2]
+
+# + tags=["active-ipynb"]
 # ewrc.get_stage_result_links()
 
 # + tags=["active-ipynb"]
-# ewrc.get_stage_times()
+# ewrc.get_stage_results('SS1')[3]
+
+# + tags=["active-ipynb"]
+# ewrc.get_stage_times()[0]
+
+# + tags=["active-ipynb"]
+# ewrc.get_stage_times()[1]
+
+# + tags=["active-ipynb"]
+# ewrc.get_stage_times()[2]
+
+# + tags=["active-ipynb"]
+# ewrc.get_stage_times()[3]
 
 # + tags=["active-ipynb"]
 # ewrc.get_itinerary()
@@ -644,4 +719,16 @@ class EWRC:
 # ewrc.get_entry_list()
 
 # + tags=["active-ipynb"]
-# ewrc.get_stage_results('SS2')
+# ewrc.get_stage_results('SS2')[0]
+# + tags=["active-ipynb"]
+# ewrc.get_stage_results('SS2')[1]
+
+
+# + tags=["active-ipynb"]
+# ewrc.get_stage_results('SS2')[2]
+
+# + tags=["active-ipynb"]
+# ewrc.get_stage_results('SS2')[3]
+# -
+
+
