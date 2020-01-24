@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.3.0rc1
+#       jupytext_version: 1.3.1
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -90,6 +90,7 @@ import base64
 
 import scipy
 import pandas as pd
+import numpy as np
 
 def fig2inlinehtml(fig):
     figfile = BytesIO()
@@ -142,6 +143,20 @@ def sparkline2(data, figsize=(2, 0.5), colband=(('red','green'),('red','green'))
     
     return fig2inlinehtml(fig)
 
+def pos1symbols(data):
+    symbol_list = []
+    for pos in data:
+        if abs(pos)==1:
+            symbol_list.append('T')
+        else:
+            symbol_list.append('F')
+    return symbol_list
+
+
+def posgainLoss(data):
+    return (-pd.DataFrame(np.abs(data)).diff()[0]).to_list()
+
+
 def sparklineStep(data, figsize=(2, 0.5), dot=False, **kwags):
     #data = [0 if pd.isnull(d) else d for d in data]
     
@@ -170,6 +185,7 @@ def sparklineStep(data, figsize=(2, 0.5), dot=False, **kwags):
     plt.close(fig)
     
     return fig2inlinehtml(fig)
+
 
 
 import seaborn as sns
@@ -255,11 +271,11 @@ def moreStyleDriverSplitReportBaseDataframe(rb2, ss, caption=None):
     s2=(rb2.style
         .background_gradient(cmap=cm, subset=_subsetter(rb2.columns, ['Road Position', 'Pos','Overall Position', 'Previous Overall Position', 'Class Rank']))
         .applymap(color_negative,
-                  subset=[c for c in rb2.columns if rb2[c].dtype==float and (not c.startswith('D') and c not in ['Overall Position','Overall Gap','Road Position', 'Pos', 'Class Rank'])])
+                  subset=[c for c in rb2.columns if rb2[c].dtype==float and (not c.startswith('D') and c not in ['Overall Position','Overall Gap','Road Position', 'Pos', 'Class Rank', 'Penalty'])])
         .highlight_min(subset=_subsetter(rb2.columns, ['Overall Position','Previous Overall Position']), color='lightgrey')
         .highlight_max(subset=_subsetter(rb2.columns, ['Overall Time', 'Overall Gap']), color='lightgrey')
         .highlight_max(subset=_subsetter(rb2.columns, ['Previous']), color='lightgrey')
-        .apply(bg_color,subset=_subsetter(rb2.columns, ['{} Overall'.format(ss), 'Overall Time','Overall Gap', 'Previous', 'Stage Overall']))
+        .apply(bg_color,subset=_subsetter(rb2.columns, ['{} Overall'.format(ss), 'Overall Time','Overall Gap', 'Previous', 'Stage Overall', 'Penalty']))
         .bar(subset=[c for c in rb2.columns if str(c).startswith('D')], align='zero', color=[ '#5fba7d','#d65f5f'])
         .bar(subset=[c for c in rb2.columns if str(c).startswith('SS') and not str(c).endswith('_overall')], align='zero', color=[ '#5fba7d','#d65f5f'])
         .set_table_styles(styles)
@@ -291,14 +307,26 @@ def setup_screenshot(driver,path):
 # Should we allow support different browsers for the screengrabs? eg Firefox as well as Chrome? OR is `force-device-scale-factor` chrome only (or maybe there is a Firefox equivalent?) What does it do, anyway?
 
 # +
-def init_browser(scale_factor=2, headless=True):
+def init_browser(scale_factor=2, headless=True, browser_type='firefox'):
+    if browser_type=='chrome':
         opt = webdriver.ChromeOptions()
         opt.add_argument('--force-device-scale-factor={}'.format(scale_factor))
         if headless:
             opt.add_argument('headless')
 
         browser = webdriver.Chrome(options=opt)
-        return browser
+        
+    elif browser_type=='firefox':
+        #print('using firefox')
+        from selenium.webdriver.firefox.options import Options
+
+        opt = Options()
+        if headless:
+            opt.headless = True
+
+        browser = webdriver.Firefox(options=opt)
+    
+    return browser
     
 def getTableImage(url, fn='dummy_table', basepath='.', path='.',
                   delay=None, scale_factor=2, height=420, width=800, headless=True,
