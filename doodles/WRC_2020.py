@@ -414,6 +414,7 @@ def getChampionship(category='WRC',typ='drivers', season_external_id=None, ):
     championshipEntries = json_normalize(r.json(), 'championshipEntries')
     return (championship, championshipRounds, championshipEntries)
 
+
 # + tags=["active-ipynb"]
 # (championship, championshipRounds, championshipEntries) = getChampionship('JWRC', 'drivers')
 # display(championship)
@@ -424,10 +425,8 @@ def getChampionship(category='WRC',typ='drivers', season_external_id=None, ):
 # getChampionshipCodes().to_dict(orient='index')#[int(SEASON_CATEGORIES['JWRC'])]
 # -
 
-
-
 def getChampionshipStandings():
-    """??"""
+    """Get championship standings."""
 
     args = {"command":"getChampionshipStandings",
             "context":{
@@ -680,11 +679,11 @@ class WRCRally(WRCRally_sbd):
 
 # +
 # NEXT TO DO - active rally class
+
+# + tags=["active-ipynb"]
+# zz = WRCRally()
+# zz.getStartlist()
 # -
-
-zz = WRCRally()
-zz.getStartlist()
-
 
 # TO DO - need a more gernal season events class?
 # If, that is, we can we look up arbtrary season events...
