@@ -265,6 +265,13 @@ def getStagewinners(sdbRallyId):
 # + tags=["active-ipynb"]
 # stagewinners = getStagewinners(sdbRallyId)
 # stagewinners.head()
+# -
+
+# Should we return empty dataframes with appropriate columns, or `None`?
+#
+# An advantage of returning an empty dataframe with labelled columns is that we can also use the column value list as a test of a returned column.
+#
+# We need to be consistent so we can have a common, consistent way of dealing with empty responses. This means things like `is None` or `pd.DataFrame().empty` both have to be handled.
 
 # +
 COLS_PENALTIES=['penaltyId','controlId','entryId','penaltyDurationMs','penaltyDuration','reason']
@@ -310,13 +317,7 @@ retirements.head()
 SEASON_URL = 'https://www.wrc.com/ajax.php?contelPageId=186641'
 
 
-WRC2 
-{"command":"getSeasonCategory","context":{"seasonCategory":"46"}}
-WRC3 
-{"command":"getSeasonCategory","context":{"seasonCategory":"49"}}
-JWRC
-{"command":"getSeasonCategory","context":{"seasonCategory":"58"}}
-
+#How can we look these up?
 SEASON_CATEGORIES = {'WRC':"35", "WRC2":"46", "WRC3":"49","JWRC":"58"}
 
 
