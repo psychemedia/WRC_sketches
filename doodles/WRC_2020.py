@@ -553,11 +553,20 @@ class WRCPenalties(WRCRally_sdb):
 # zz=WRCPenalties(autoseed=True)
 # zz.penalties.head(3)
 # -
+
+rally, eligibilities, groups = getRally(sdbRallyId)
+splitPoints, entrySplitPointTimes, splitPointTimes = getSplitTimes(sdbRallyId,stageId)
+stagetimes = getStageTimes(sdbRallyId,stageId)
+stagewinners = getStagewinners(sdbRallyId)
+championship = getChampionship()
+championship = getChampionshipStandingsLive()
+
+
 class WRCItinerary(WRCRally_sdb):
     """Class for WRC2020 Itinerary."""
-    def __init__(self, sdbRallyId=None, live=False):
+    def __init__(self, sdbRallyId=None, live=False, autoseed=False):
         """Initialise itinerary class."""
-        WRCRally_sdb.__init__(self, sdbRallyId, live)
+        WRCRally_sdb.__init__(self, sdbRallyId, live, autoseed)
         
         self.itinerary=None
         self.legs=None
@@ -570,14 +579,46 @@ class WRCItinerary(WRCRally_sdb):
         
     def fetchData(self, sdbRallyId=None):
         """Fetch the data from WRC API."""
-        sdbRallyId = sdbRallyId or None
+        self._checkRallyId(sdbRallyId)
         
         itinerary, legs, sections, controls, stages = getItinerary(sdbRallyId)
         self.itinerary, self.legs, self.sections, self.controls, self.stages = itinerary, legs, sections, controls, stages
         
 
 
+print(WRCItinerary(autoseed=True).sdbRallyId)
+
 WRCItinerary(sdbRallyId=100).legs
+
+
+class WRCStartlist():
+    """Class for WRC2020 Startlist table."""
+    def __init__(self, startlistId=None):
+        self.startListId = startlistId or None
+        
+        if not self.startListId:
+            warnings.warn("startListId should really be set..")
+        
+        if self.startListId:
+            self.fetchData(startListId)
+    
+    def _checkStartListId(self, startListId=None):
+        """Return a startlistId or look one up."""
+        startListId = startListId or self.startListId
+        if not startListId:
+            if not hasattr(self, 'itinerary') or not self.itinerary:
+                self.itinerary = WRCItinerary(autoseed=True)
+                self.sdbRallyId = self.itinerary.sdbRallyId
+            self.startListId = int(self.itinerary.legs.loc[0,'startListId'])
+        return self.startListId
+        
+        
+    def fetchData(self, startListId=None):
+        self._checkStartListId(startListId)
+        startList,startListItems = getStartlist(startListId)
+        self.startList, self.startListItems = startList,startListItems
+
+WRCStartlist().fetchData()
 
 
 class WRCCars(WRCRally_sdb):
@@ -592,58 +633,12 @@ class WRCCars(WRCRally_sdb):
             self.fetchData(sdbRallyId)
             
     def fetchData(self, sdbRallyId=None):
+        self._checkRallyId(sdbRallyId)
         cars, classes = getCars(sdbRallyId)
         self.cars, self.classes = cars, classes
 
 
 WRCCars()
-
-
-class WRCStartlist():
-    """Class for WRC2020 Startlist table."""
-    def __init__(self, startListId=None):
-        self.startListId = startListId or None
-        
-        if not self.startListId:
-            warnings.warn("startListId should really be set..")
-        
-        if self.startListId:
-            self.fetchData(startListId)
-            
-    def fetchData(self, startListId=None):
-        startList,startListItems = getStartlist(startListId)
-        self.startList, self.startListItems = startList,startListItems
-
-
-WRCStartlist()
-
-
-class WRCActiveRally(WRCRally_sdb):
-    """Class for the active rally."""
-    def __init__(self, live=False ):
-        WRCRally_sdb.__init__(self, None, live, nowarn=True)
-
-        self.live = live
-        self.fetchData()
-        
-    def fetchData(self):
-        event, days, channels = getActiveRally()
-        self.event, self.days, self.channels = event, days, channels
-
-        #np.int64 is not JSON serialisable
-        self.sdbRallyId = int(event.loc[0,'id'])
-
-        self.name = event.loc[0,'name']
-
-
-rally, eligibilities, groups = getRally(sdbRallyId)
-splitPoints, entrySplitPointTimes, splitPointTimes = getSplitTimes(sdbRallyId,stageId)
-stagetimes = getStageTimes(sdbRallyId,stageId)
-stagewinners = getStagewinners(sdbRallyId)
-penalties = getPenalties(sdbRallyId)
-retirements = getRetirements(sdbRallyId)
-championship = getChampionship()
-championship = getChampionshipStandingsLive()
 
 
 # +
@@ -655,64 +650,37 @@ class WRCRally(WRCRally_sbd):
         
         self.live = live
         self.itinerary = None
-        self.startlistId = None
+        self.startListId = None
         self.activerally = None
-
-        
-    def _checkRallyId(self, sdbRallyId=None):
-        """Return a rally ID or lookup active one."""
-        sdbRallyId = sdbRallyId or self.sdbRallyId
-        if not sdbRallyId:
-            self.activerally = WRCActiveRally()
-            self.sdbRallyId = self.activerally.sdbRallyId
-        return self.sdbRallyId
     
     
     def getItinerary(self):
         """Get itinerary.
            If rally not known, use active rally.
-           Also set a default startlistId."""
-        self._checkRallyId()
+           Also set a default startListId."""
         
         _i = self.itinerary = WRCItinerary(self.sdbRallyId)
         
-        #Set a default startlistId value if required
-        if not self.startlistId and _i and _i.legs and not _i.legs.empty :
-            self.startlistId = int(_i.legs.loc[0,'startListId'])
+        #Set a default startListId value if required
+        if not self.startListId and _i and _i.legs and not _i.legs.empty :
+            self.startListId = int(_i.legs.loc[0,'startListId'])
             
         return (_i.itinerary, _i.legs, _i.sections, _i.controls, _i.stages)
  
     def getCars(self):
         """Get cars for a rally.
            If no rally provided, use current one."""
-        self._checkRallyId()
         
         _c = self.cars = WRCCars(self.sdbRallyId)
         
         return (_c.cars, _c.classes)
-
-
-        
-    def _checkStartlistId(self, startlistId=None):
-        """Return a startlistId or look one up."""
-        startlistId = startlistId or self.startlistId
-        if not startlistId:
-            print('setting')
-            if not self.itinerary:
-                self.getItinerary()
-            print('cc',int(self.itinerary.legs.loc[0,'startListId']))
-            self.startlistId = int(self.itinerary.legs.loc[0,'startListId'])
-        return self.startlistId
-        
        
         
-    def getStartlist(self, startlistId=None):
+    def getStartlist(self, startListId=None):
         """Get startlist.
-           If no startlistId provided, try to find a default."""
+           If no startListId provided, try to find a default."""
         
-        self._checkStartlistId(startlistId)
-        
-        _s = self.startlist = WRCStartlist(self.startlistId)
+        _s = self.startlist = WRCStartlist(self.startListId)
       
         return (_s.startList, _s.startListItems)
     
