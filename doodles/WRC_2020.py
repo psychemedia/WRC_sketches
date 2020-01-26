@@ -394,11 +394,12 @@ def _getChampionshipId(category='WRC', typ='drivers'):
     activeExternalId = championship_activeExternalId[typ]
     return activeExternalId
 
-def getChampionship(category='WRC',typ='drivers', season_external_id=None, ):
+def getChampionship(category='WRC',typ='drivers',
+                    season_external_id=None, ):
     """Get Championship details for specified category and championship.
        If nor season ID is provided, use the external seasonid from the active rally. """
     
-    season_external_id = SeasonBase(autoseed=True).season_external_id
+    season_external_id = SeasonBase(season_external_id, autoseed=True).season_external_id
     args = {"command":"getChampionship",
             "context":{"season":{"externalId":season_external_id},
                        "activeExternalId":_getChampionshipId(category,typ)}}
@@ -425,14 +426,15 @@ def getChampionship(category='WRC',typ='drivers', season_external_id=None, ):
 # getChampionshipCodes().to_dict(orient='index')#[int(SEASON_CATEGORIES['JWRC'])]
 # -
 
-def getChampionshipStandings():
+def getChampionshipStandings(category='WRC',typ='drivers',
+                             season_external_id=None, ):
     """Get championship standings."""
-
+    season_external_id = SeasonBase(season_external_id, autoseed=True).season_external_id
     args = {"command":"getChampionshipStandings",
             "context":{
-                       "season":{"externalId":6,
+                       "season":{"externalId":season_external_id,
                                  },
-                       "activeExternalId":"38"}}
+                       "activeExternalId":_getChampionshipId(category,typ)}}
     r = s.post(SEASON_URL, data=json.dumps(args))
     
     if not r.text:
