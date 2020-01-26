@@ -455,9 +455,51 @@ class WRCRally_sdb:
         self.sdbRallyId = sdbRallyId or None
         
 
+class WRCRetirements(WRCRally_sdb):
+    """Class for retirements"""
+    def __init__(self, sdbRallyId=None, live=False, autoseed=False):
+        """Initialise retirements class."""
+        WRCRally_sdb.__init__(self, sdbRallyId, live, autoseed)
+            
+        self.retirements=None
+        
+        if self.sdbRallyId:
+            self.fetchData(self.sdbRallyId)
+        
+    def fetchData(self, sdbRallyId=None):
+        """Fetch the data from WRC API."""
+        self._checkRallyId(sdbRallyId)
+        self.retirements = getRetirements(self.sdbRallyId)
+        
 
+
+# + tags=["active-ipynb"]
+# zz=WRCRetirements(autoseed=True)
+# zz.retirements.head(3)
 # -
 
+class WRCPenalties(WRCRally_sdb):
+    """Class for penalties"""
+    def __init__(self, sdbRallyId=None, live=False, autoseed=False):
+        """Initialise penalties class."""
+        WRCRally_sdb.__init__(self, sdbRallyId, live, autoseed)
+            
+        self.penalties=None
+        
+        if self.sdbRallyId:
+            self.fetchData(self.sdbRallyId)
+        
+    def fetchData(self, sdbRallyId=None):
+        """Fetch the data from WRC API."""
+        self._checkRallyId(sdbRallyId)
+        self.penalties = getPenalties(self.sdbRallyId)
+        
+
+
+# + tags=["active-ipynb"]
+# zz=WRCPenalties(autoseed=True)
+# zz.penalties.head(3)
+# -
 class WRCItinerary(WRCRally_sdb):
     """Class for WRC2020 Itinerary."""
     def __init__(self, sdbRallyId=None, live=False):
