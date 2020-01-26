@@ -357,6 +357,35 @@ def getSeasonCategory(seasonCategory=SEASON_CATEGORIES['WRC']):
 # + tags=["active-ipynb"]
 # getChampionshipCodes()
 
+# + run_control={"marked": false}
+class SeasonBase:
+    """Base class for things to do with seasons."""
+    def __init__(self, season_external_id=None, autoseed=False):
+        self.season_external_id = season_external_id or None
+        if not self.season_external_id and autoseed:
+            self._check_season_external_id()
+            
+    def _check_season_external_id(self):
+        """Check that season_external_id exists and if not, get one."""
+        if not hasattr(self,'season_external_id') or not self.season_external_id:
+            #Get current one from active rally
+            #It's also available from current_season_events
+            event, days, channels = getActiveRallyBase()
+            self.event, self.days, self.channels = event, days, channels
+            #The returned np.int64 is not JSON serialisable
+            self.season_external_id = int(event.loc[0,'season.externalId'])
+
+# TO DO
+class Championship(SeasonBase):       
+    """Class for championship."""
+    def __init__(self ):
+        SeasonBase.__init__(self)
+
+
+
+# + tags=["active-ipynb"]
+# SeasonBase(autoseed=True).season_external_id
+
 # +
 def _getChampionshipId(category='WRC', typ='drivers'):
     """Look up external ids for championship by category and championship."""
@@ -369,13 +398,7 @@ def getChampionship(category='WRC',typ='drivers', season_external_id=None, ):
     """Get Championship details for specified category and championship.
        If nor season ID is provided, use the external seasonid from the active rally. """
     
-    if season_external_id is None:
-        #Get current one from active rally
-        #It's also available from current_season_events
-        event, days, channels = getActiveRallyBase()
-        #The returned np.int64 is not JSON serialisable
-        season_external_id = int(event.loc[0,'season.externalId'])
-        
+    season_external_id = SeasonBase(autoseed=True).season_external_id
     args = {"command":"getChampionship",
             "context":{"season":{"externalId":season_external_id},
                        "activeExternalId":_getChampionshipId(category,typ)}}
