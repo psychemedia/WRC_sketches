@@ -453,19 +453,6 @@ def getChampionshipStandings():
 
 
 
-def getChampionshipStandingsLive():
-    """Get Championship details for ??"""
-    args = {"command":"getChampionshipStandingsLive",
-            "context":{"sdbRallyId":100,"activeSeasonId":19}}
-    r = s.post(URL, data=json.dumps(args))
-    championship = json_normalize(r.json())
-    return championship
-
-
-# + tags=["active-ipynb"] run_control={"marked": false}
-# championship = getChampionshipStandingsLive()
-# championship
-
 # +
 # TO DO - define a class for each table
 import warnings
