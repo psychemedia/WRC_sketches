@@ -458,12 +458,55 @@ import warnings
 
 
 class WRCRally_sdb:
-    """Base class for things with an sdbRallyId"""
-    def __init__(self, sdbRallyId=None, live=False, nowarn=True):
+    """Base class for things with an sdbRallyId.
+       Can also help find an active sdbRallyId"""
+    def __init__(self, sdbRallyId=None, live=False,
+                 autoseed=False, nowarn=True,):
         if not nowarn and not sdbRallyId:
             warnings.warn("sdbRallyId should really be set...")
+        
         self.sdbRallyId = sdbRallyId or None
         
+        if autoseed:
+            self._checkRallyId(sdbRallyId)
+    
+    def _checkRallyId(self, sdbRallyId=None):
+        """Return a rally ID or lookup active one."""
+        sdbRallyId = sdbRallyId or self.sdbRallyId
+        if not hasattr(self, 'sdbRallyId') or self.itinerary
+        if not sdbRallyId:
+            self.activerally = WRCActiveRally()
+            self.sdbRallyId = self.activerally.sdbRallyId
+        return self.sdbRallyId
+
+
+# -
+
+class WRCActiveRally(WRCRally_sdb):
+    """Class for the active rally."""
+    def __init__(self, live=False ):
+        WRCRally_sdb.__init__(self, None, live, nowarn=True)
+
+        self.live = live
+        self.fetchData()
+        
+    def fetchData(self):
+        event, days, channels = getActiveRally()
+        self.event, self.days, self.channels = event, days, channels
+
+        #np.int64 is not JSON serialisable
+        self.sdbRallyId = int(event.loc[0,'id'])
+
+        self.name = event.loc[0,'name']
+
+
+WRCActiveRally()
+
+zz = WRCRally_sdb(autoseed=True)
+print(zz.sdbRallyId)
+
+
+# We use the `.fetchData()` method so as to ry not to be greedy. This way, we can define a class and start to work towards only grabbling the data if we need it.
 
 class WRCRetirements(WRCRally_sdb):
     """Class for retirements"""
