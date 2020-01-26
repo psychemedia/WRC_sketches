@@ -46,3 +46,37 @@ while competing:
 ```python
 
 ```
+
+```python run_control={"marked": false}
+from sqlite_utils import Database
+
+db = Database("testlive-wrc-mc-livegrab.db")
+livetest = db["livetest"]
+
+url='https://webappsdata.wrc.com/srv/wrc/json/api/liveservice/getData?timeout=5000'
+#d='times/raw'
+ 
+#if not os.path.exists(d):
+#    os.makedirs(d)
+
+#competing=True
+while True:
+    r=requests.get(url)
+    try:
+        j=r.json()
+    except: continue
+    ts=j['timestamp']
+    #competing=False
+    if '_entries' in j:
+        #for x in j['_entries']:
+        #      if 'status' in  x and x['status']=='Competing': competing=True
+        with open('{}/_{}.txt'.format(d,ts),'w') as outfile:
+              livetest.upsert_all(j['_entries'], pk=['name','utx'])
+    time.sleep(2)
+    
+
+```
+
+```python
+
+```
