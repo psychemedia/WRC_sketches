@@ -593,19 +593,19 @@ WRCItinerary(sdbRallyId=100).legs
 
 class WRCStartlist():
     """Class for WRC2020 Startlist table."""
-    def __init__(self, startlistId=None):
+    def __init__(self, startlistId=None, autoseed=True):
         self.startListId = startlistId or None
         
         if not self.startListId:
             warnings.warn("startListId should really be set..")
         
-        if self.startListId:
+        if self.startListId or autoseed:
             self.fetchData(startListId)
     
     def _checkStartListId(self, startListId=None):
         """Return a startlistId or look one up."""
-        startListId = startListId or self.startListId
-        if not startListId:
+        self.startListId = startListId or self.startListId
+        if not self.startListId:
             if not hasattr(self, 'itinerary') or not self.itinerary:
                 self.itinerary = WRCItinerary(autoseed=True)
                 self.sdbRallyId = self.itinerary.sdbRallyId
@@ -615,11 +615,13 @@ class WRCStartlist():
         
     def fetchData(self, startListId=None):
         self._checkStartListId(startListId)
-        startList,startListItems = getStartlist(startListId)
+        startList,startListItems = getStartlist(self.startListId)
         self.startList, self.startListItems = startList,startListItems
 
-WRCStartlist().fetchData()
 
+# + tags=["active-ipynb"]
+# WRCStartlist(autoseed=True).startList
+# -
 
 class WRCCars(WRCRally_sdb):
     """Class for WRC2020 Cars table."""
