@@ -554,15 +554,15 @@ class WRCPenalties(WRCRally_sdb):
 # + tags=["active-ipynb"]
 # zz=WRCPenalties(autoseed=True)
 # zz.penalties.head(3)
+
+# +
+#rally, eligibilities, groups = getRally(sdbRallyId)
+#splitPoints, entrySplitPointTimes, splitPointTimes = getSplitTimes(sdbRallyId,stageId)
+#stagetimes = getStageTimes(sdbRallyId,stageId)
+#stagewinners = getStagewinners(sdbRallyId)
+#championship = getChampionship()
+#championship = getChampionshipStandings()
 # -
-
-rally, eligibilities, groups = getRally(sdbRallyId)
-splitPoints, entrySplitPointTimes, splitPointTimes = getSplitTimes(sdbRallyId,stageId)
-stagetimes = getStageTimes(sdbRallyId,stageId)
-stagewinners = getStagewinners(sdbRallyId)
-championship = getChampionship()
-championship = getChampionshipStandingsLive()
-
 
 class WRCItinerary(WRCRally_sdb):
     """Class for WRC2020 Itinerary."""
