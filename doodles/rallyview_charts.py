@@ -233,15 +233,17 @@ def _rebased_pace_times(ewrc,rebase):
         _df = ewrc.df_stages
     return _df, rebase
     
-def paceReport(ewrc, rebase=None):
+def paceReport(ewrc, rebase=None, show=False):
     ''' Time gained / lost per km on a stage. '''
 
     ewrc.set_rebased_times()
     ewrc.get_itinerary()
     
     _df, rebase = _rebased_pace_times(ewrc,rebase)
-    display(_df)
-    display(rebase)
+    if show:
+        display(_df)
+        display(rebase)
+        
     _df = (_df.apply(_rebaseTimes, bib=rebase, axis=0) / ewrc.stage_distances).round(3)
     
     return _df.dropna(how='all', axis=1)
@@ -327,7 +329,6 @@ def requiredPace(ewrc, rebase=None, within=None):
 
 
 
-# +
 def rally_report(ewrc, rebase, codes=None):
     ''' Generate a rally report.
         rebase: rebase times to a specified car or position:
@@ -482,9 +483,6 @@ def rally_report(ewrc, rebase, codes=None):
     s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
     #print('...done')
     return tmp, s2
-    
-
-# -
 
 
 aa='/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465687/'
@@ -574,7 +572,7 @@ ewrc.rally_classes
 #     print('...done')
 #     display(Image(_))
 #     print(_)
-#     
+#
 # interact(rally_report2, cl=classes, carNum=carNum);
 
 # + tags=["active-ipynb"]
@@ -699,11 +697,13 @@ import numpy as np
 # ax.set_ylim( _ymax, _ymin-0.3 );
 
 # +
+from matplotlib.ticker import MaxNLocator
 
 
 def pace_map(ewrc, rebase='stage_winner',
              rally_class='all', PACEMAX = 2,
-             title=None):
+             title=None, stretch=True, drop=False):
+    """Pace map chart."""
     
     def _pace_df(df):
         
@@ -722,12 +722,19 @@ def pace_map(ewrc, rebase='stage_winner',
         title = f'Pace Report rebased to {rebase}'
         
     df = paceReport(ewrc, rebase=rebase)
-    
-    xy = [_ for _ in zip(ewrc.stage_distances.cumsum().shift(fill_value=0).round(2), 
-                             ewrc.stage_distances.cumsum().round(2)) ]
-    
+        
+    if stretch:
+        xy = [_ for _ in zip(ewrc.stage_distances.cumsum().shift(fill_value=0).round(2), 
+                                 ewrc.stage_distances.cumsum().round(2)) ]
+    else:
+        xy = [_ for _ in zip(range(ewrc.stage_distances.size),range(1,ewrc.stage_distances.size+1))]
+
     dff = _pace_df(df)
     
+    #Need to tweak the whole chart to be able to show not run stages
+    if drop:
+        pass
+        
     _ymin = 0
 
     PACEMAX = PACEMAX+0.1
@@ -735,7 +742,7 @@ def pace_map(ewrc, rebase='stage_winner',
     lines = dff.apply(lambda x: [(x['x0'],x['value']),(x['x1'],x['value'])],
                                       axis=1).to_list()
     
-    #This is part of a fudge to try to get categorical line coloorung
+    #This is part of a fudge to try to get categorical line coloring
     _entries = [True if (pd.notna(xy[0][1]) and pd.notna(xy[1][1]) 
                                 and xy[0][1] <= PACEMAX) else False for xy in lines]
 
@@ -797,18 +804,30 @@ def pace_map(ewrc, rebase='stage_winner',
     #Add title
     plt.text(0, _ymin-0.7, title, size=10)
     
-    for _x in ewrc.stage_distances.cumsum():
-        ax.axvline( x=_x, color='lightgrey', linestyle=':')
+    if stretch:
+        for _x in ewrc.stage_distances.cumsum():
+            ax.axvline( x=_x, color='lightgrey', linestyle=':')
+    else:
+        for (_, _x) in xy:
+            ax.axvline( x=_x, color='lightgrey', linestyle=':')
 
     ax.set_ylabel("Off the pace (s/km)")
-    ax.set_xlabel("Accumulated competitive distance (km)")
+    if stretch:
+        ax.set_xlabel("Accumulated competitive distance (km)")
+    else:
+        #ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax.xaxis.set_major_formatter(plt.NullFormatter())
+        ax.set_xlabel(None)
+
     ax.set_ylim( _ymax, _ymin-0.3 );
 # -
 
-pace_map(ewrc, PACEMAX=2)
+pace_map(ewrc, PACEMAX=2, stretch=False)
 
 # + tags=["active-ipynb"]
-# pace_map(ewrc, rebase='/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465681/',
+# evans='/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465687/'
+# neuville = '/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465681/'
+# pace_map(ewrc, rebase=neuville,
 #          PACEMAX=1)
 
 # +
@@ -829,17 +848,44 @@ pace_map(ewrc, PACEMAX=2)
  ewrc.df_allInOne
 
 # + run_control={"marked": false} tags=["active-ipynb"]
-# from matplotlib.ticker import MaxNLocator
 #
 #
-# xKms = True
+# stretch = False
 #
 # ewrc.get_itinerary()
 #
 # fig, ax = plt.subplots(figsize=(12,8))
 # ax.figsize = (16,6)
 #
-# dff = ewrc.df_stages_rebased_to_stage_winner.head()
+# #dff = ewrc.df_stages_rebased_to_stage_winner.head()
+# #bib: overall_leader, stage_winner
+# #gPace from PushingPace https://pushingpace.com/gpace/
+# #"What is gPace? 
+# # gPace is the time lost to the fastest theoretical time achievable.
+# #In other words a theoretical rally time of the fastest stage times,
+# #whoever set them. 
+# #Further still it could include stage times made of the fastest splits.
+# #Only one person has ever won every stage of a round of the WRC. 
+# #Known as the GOAT or God, Sebastien Loeb achieved this 
+# #on Tour de Corse in 2005. 
+# #Therefore the ‘g’ of gPace is a small tribute to him.
+# #Although it could also stand for ‘ghost pace’ 
+# #as seen in many rally video games.
+# #See rest of original post for more
+# rebase='/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465687/' #evans
+# #rebase='/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465681/'#neuville'
+# #rebase='/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465687/'
+# pilot = 'Evans'
+# #rebase=None
+# if rebase:
+#     dff = ewrc.df_stages.head()
+#     dff.apply(_rebaseTimes, bib=rebase, axis=0)
+#     #Need to now subtract that driver's times
+#     dff = dff - dff.loc[rebase]
+# else:
+#     dff = ewrc.df_stages_rebased_to_stage_winner.head()
+#     pilot = 'Each Stage Winner'
+#     
 # dff = pd.merge(dff, ewrc.df_allInOne[['carNum']],
 #                        how='left', left_index=True, right_index=True)
 # dff.set_index('carNum', drop=True, inplace=True)
@@ -848,12 +894,16 @@ pace_map(ewrc, PACEMAX=2)
 #
 # dff_cumsumT=dff_cumsum.T
 #
-#
-# if xKms:
+# if stretch:
 #     xy = [_ for _ in zip(ewrc.stage_distances.cumsum().shift(fill_value=0).round(2), 
 #                              ewrc.stage_distances.cumsum().round(2)) ]
+# else:
+#     xy = [_ for _ in zip(range(ewrc.stage_distances.size),range(1,ewrc.stage_distances.size+1))]
+#
+#
+# _xy = [_x[1] for _x in xy[:len(dff_cumsum.T)]]  
 #     
-#     _xy = [_x[1] for _x in xy[:len(dff_cumsum.T)]]    
+# if stretch:      
 #     for _x in _xy[:-1]:
 #         plt.axvline(_x,linestyle='dotted')
 #     dff_cumsumT.index=_xy
@@ -867,9 +917,13 @@ pace_map(ewrc, PACEMAX=2)
 #
 # else:
 #     ax = dff_cumsumT.plot(ax=ax)
-#     ax.set_xlabel("Stage")
+#     #ax.set_xlabel("Stage")
+#     ax.get_xaxis().set_visible(False)
 #     _times=dff_cumsumT.to_dict()
 #  
+#     for _x in _xy[:-1]:
+#         plt.axvline(_x,linestyle='dotted')
+#             
 #     xlim = plt.xlim()
 #     ax.set_xlim(xlim[0]-0.1, xlim[1]+0.1)
 #
@@ -881,38 +935,110 @@ pace_map(ewrc, PACEMAX=2)
 #
 #
 # #Add marker for stage winner
-# winner_stage = sorted(list(dff[dff==0].stack().index), key=lambda x: x[1])
-# for _i,(_x,_y) in enumerate(winner_stage):
-#     if not xKms:
-#         ax.plot(_i+1, dff_cumsum.loc[_x,_y],
+# # dff.min() gives the minimum (rebased) stage time (So need to cope w/ NA?)
+# winner_stage = sorted(list(dff[dff==dff.min()].stack().index), key=lambda x: x[1])
+# for (_x,_y) in winner_stage:
+#     if not stretch:
+#         ax.plot(_y, dff_cumsum.loc[_x,_y],
 #                 marker='D', markersize=2, c='red')
 #     else:
-#         ax.plot(xy[_i][1], dff_cumsumT.iloc[_i][winner_stage[_i][0]],
+#         ax.plot(xy[_y-1][1], dff_cumsumT.iloc[_y-1][winner_stage[_y-1][0]],
 #                 marker='D', markersize=2, c='red')
 #
 #         
 #     
-# plt.title('Off the ultimate pace chart (summed delta to stage winner)')
-# ax.set_ylabel("Off the utlimate summed stagetime pace (s)")
+# plt.title(f'Off the ultimate pace chart (summed delta relative to {pilot})', pad=25)
+# ax.set_ylabel(f"Off the summed stagetime pace relative to {pilot} (s)")
 #
 # #x-axis integers: https://stackoverflow.com/a/38096332/454773
 # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 #
 #
+# #Add stage labels
+# _ymin=0
+# if stretch:
+#     for( _i, _xy) in  [(_i, _xy) for (_i, _xy) in enumerate(xy)][:len(winner_stage)]:
+#         plt.text((_xy[0]+_xy[1])/2, _ymin-5, _i+1, size=10,
+#                 bbox=dict(facecolor='red', alpha=0.5))
+# else:
+#     ylim = plt.ylim()
+#     for( _i, _xy) in  [(_i, _xy) for (_i, _xy) in enumerate(xy)][:len(winner_stage)]:
+#         plt.text((_xy[0]+_xy[1])/2, ylim[1]+10, _i+1, size=10,
+#                 bbox=dict(facecolor='red', alpha=0.5))
+#     ax.xaxis.set_ticks_position('none')
+#         
 # plt.axhline(0,linestyle='dotted')
 #
+# plt.box(on=None)
+# #ax.yaxis.set_ticks_position('none') 
+#     
 # plt.gca().invert_yaxis()
 #
 # -
 
-dff_cumsumT.iloc[1]['17']
+ ewrc.df_stages.head()
 
- ewrc.df_allInOne
+ewrc.df_allInOne
 
 # ## Pace Leveller Map
 #
 # For a particular selected (rebased) drive, a chart like the above with red and green bands that show pace that would level a driver compared to the selected driver on the next stage or N stages.
 #
+#
+# Pace required to level up by end of Stage N from from stage M (s/km):
 
-# +
 # Use: requiredStagePace()
+requiredStagePace(ewrc, 'SS9', rebase=None, target_stage=None).head(10)
+
+
+
+# ## Rally Strategy Simulator
+#
+# Slider widgets, one per stage, with assumed pace delta. Line chart shoiwn summed time delta over stages.
+
+import ipywidgets as widgets
+
+# + run_control={"marked": false}
+#Based on https://stackoverflow.com/q/48020345/454773
+
+_sliders = []
+_sliders_left = []
+_sliders_right = []
+
+sliders = {}
+
+for (_i, _stage) in enumerate(xy):
+    _sliders.append(widgets.FloatSlider(value=0,
+                                        min=-1.5, max=1.5,
+                                        description=f'SS{_i+1} ({ ewrc.stage_distances[_i+1]})'))
+
+colheight = len(xy)/2
+for (_i, _stage_slider) in enumerate(_sliders):
+    sliders[f'SS{_i+1}'] = _stage_slider
+    if _i < colheight:
+        _sliders_left.append(_stage_slider)
+    else:
+        _sliders_right.append(_stage_slider)
+
+left_box = widgets.VBox(_sliders_left)
+right_box = widgets.VBox(_sliders_right)
+ui = widgets.VBox([widgets.Label(value="Rally Strategist"),
+                   widgets.HBox([left_box, right_box])])
+
+
+def f(**kwargs):
+    _cumdelta=0
+    for x in kwargs:
+        _dist = ewrc.stage_distances[int(x.replace('SS',''))]
+        _delta = round(kwargs[x]*_dist,2)
+        _cumdelta = round(_cumdelta+_delta, 2)
+        print(x, _dist,
+              kwargs[x], _delta, _cumdelta )
+
+out = widgets.interactive_output(f, {f'SS{_i+1}':_s for (_i, _s) in enumerate(_sliders) })
+
+
+display(ui, out)
+# -
+
+
