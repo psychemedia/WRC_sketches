@@ -446,13 +446,11 @@ def getChampionshipStandings(category='WRC',typ='drivers',
     return (championship_standings, round_results)
 
 
+
 # + tags=["active-ipynb"]
 # championship_standings, round_results = getChampionshipStandings()
 # display(championship_standings.head())
 # display(round_results.head())
-# -
-
-
 
 # +
 # TO DO - define a class for each table
@@ -502,11 +500,13 @@ class WRCActiveRally(WRCRally_sdb):
         self.name = event.loc[0,'name']
 
 
-WRCActiveRally()
+# + tags=["active-ipynb"]
+# WRCActiveRally()
 
-zz = WRCRally_sdb(autoseed=True)
-print(zz.sdbRallyId)
-
+# + tags=["active-ipynb"]
+# zz = WRCRally_sdb(autoseed=True)
+# print(zz.sdbRallyId)
+# -
 
 # We use the `.fetchData()` method so as to ry not to be greedy. This way, we can define a class and start to work towards only grabbling the data if we need it.
 
@@ -588,10 +588,12 @@ class WRCItinerary(WRCRally_sdb):
         
 
 
-print(WRCItinerary(autoseed=True).sdbRallyId)
+# + tags=["active-ipynb"]
+# print(WRCItinerary(autoseed=True).sdbRallyId)
 
-WRCItinerary(sdbRallyId=100).legs
-
+# + tags=["active-ipynb"]
+# WRCItinerary(sdbRallyId=100).legs
+# -
 
 class WRCStartlist():
     """Class for WRC2020 Startlist table."""
@@ -647,10 +649,11 @@ WRCCars()
 
 # +
 #This class will contain everything about a single rally
-class WRCRally(WRCRally_sbd):
+class WRCRally(WRCRally_sdb):
     """Class for a rally - stuff where sdbRallyId is required."""
-    def __init__(self, sdbRallyId=None, live=False, ):
-        WRCRally_sbd.__init__(self, sdbRallyId, live)
+    def __init__(self, sdbRallyId=None, live=False, autoseed=False ):
+        WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId, live=live,
+                             autoseed=autoseed)
         
         self.live = live
         self.itinerary = None
@@ -689,6 +692,22 @@ class WRCRally(WRCRally_sbd):
         return (_s.startList, _s.startListItems)
     
     
+    def getPenalties(self):
+        """Get penalties."""
+        
+        self._penalties = WRCPenalties(self.sdbRallyId)
+        self.penalties = self._penalties.penalties
+        return self.penalties
+     
+        
+    def getRetirements(self):
+        """Get retirements."""
+        
+        self._retirements = WRCRetirements(self.sdbRallyId)
+        self.retirements = self._retirements.retirements
+        return self.retirements
+     
+    
     
     
 
@@ -697,7 +716,7 @@ class WRCRally(WRCRally_sbd):
 
 # + tags=["active-ipynb"]
 # zz = WRCRally()
-# zz.getStartlist()
+# zz.getRetirements()
 # -
 
 # TO DO - need a more gernal season events class?
