@@ -119,7 +119,8 @@ def getItinerary(sdbRallyId=None):
     r = s.post(URL, data=json.dumps(args))
     
     if not r.text or r.text=='null':
-        return None
+        itinerary = legs = sections = controls = stages = None
+        return (itinerary, legs, sections, controls, stages)
     
     itinerary = json_normalize(r.json()).drop(columns='itineraryLegs')
     legs = json_normalize(r.json(),'itineraryLegs' )
@@ -150,7 +151,8 @@ def getStartlist(startListId):
     r = s.post(URL, data=json.dumps(args))
     
     if not r.text or r.text=='null':
-        return None
+        startList = startListItems = None
+        return (startList,startListItems)
     
     startList = json_normalize(r.json()).drop(columns='startListItems')
     startListItems = json_normalize(r.json(), 'startListItems')
@@ -171,7 +173,8 @@ def getCars(sdbRallyId):
     args = {"command":"getCars","context":{"sdbRallyId":100}}
     r = s.post(URL, data=json.dumps(args))
     if not r.text or r.text=='null':
-        return None
+        cars = classes = None
+        return (cars, classes)
     
     cars = json_normalize(r.json()).drop(columns='eventClasses')
     classes = json_normalize(r.json(), 'eventClasses')
@@ -314,40 +317,73 @@ WRC3
 JWRC
 {"command":"getSeasonCategory","context":{"seasonCategory":"58"}}
 
+SEASON_CATEGORIES = {'WRC':"35", "WRC2":"46", "WRC3":"49","JWRC":"58"}
 
-def getSeasonCategory(seasonCategory): 
+
+def getSeasonCategory(seasonCategory=SEASON_CATEGORIES['WRC']): 
     """??"""
     args = {"command":"getSeasonCategory",
             "context":{"seasonCategory":seasonCategory}}
     r = s.post(SEASON_URL, data=json.dumps(args))
+    if not r.text:
+        return None
     return json_normalize(r.json())
 
 
 # + tags=["active-ipynb"]
-# SEASON_CATEGORIES = {'WRC':"35", "WRC2":"46", "WRC3":"49","JWRC":"58"}
+# getSeasonCategory()
+
+# + tags=["active-ipynb"]
+# SC_COLS = ['id','externalIdDriver','externalIdCoDriver','externalIdManufacturer']
 #
-# seasonCategory = SEASON_CATEGORIES['JWRC']
-# getSeasonCategory(seasonCategory)
+# def getChampionshipCodes():
+#     """Create dataframe of external championship IDs."""
+#     champs=pd.DataFrame()
+#
+#     for sc in SEASON_CATEGORIES:
+#         seasonCategory = SEASON_CATEGORIES[sc]
+#
+#         champs = champs.append(getSeasonCategory(seasonCategory)[SC_COLS])
+#
+#     champs.set_index('id', inplace=True)
+#     champs.rename(columns={'externalIdDriver':'drivers',
+#                            'externalIdCoDriver':'codrivers',
+#                            'externalIdManufacturer':'manufacturers'},
+#                  inplace=True)
+#     return champs
+#
+
+# + tags=["active-ipynb"]
+# getChampionshipCodes()
 
 # +
-# TO DO  - following is WRC;
-# TO DO championship_activeExternalId lookup from getSeasonCategory()
-def _getChampionshipId(typ='drivers'):
-    championship_activeExternalId = {'drivers':37,
-                                    'codrivers':38,
-                                    'manufacturers':39}
+def _getChampionshipId(category='WRC', typ='drivers'):
+    """Look up external ids for championship by category and championship."""
+    champs=getChampionshipCodes()
+    championship_activeExternalId = champs.to_dict(orient='index')[int(SEASON_CATEGORIES[category])]
     activeExternalId = championship_activeExternalId[typ]
     return activeExternalId
 
-def getChampionship(typ='drivers'):
-    """Get Championship details for ??"""
-    args = {"command":"getChampionship",
-            "context":{"season":{"externalId":6},
-                       "activeExternalId":_getChampionshipId(typ)}}
-    r = s.post(SEASON_URL, data=json.dumps(args))
+def getChampionship(category='WRC',typ='drivers', season_external_id=None, ):
+    """Get Championship details for specified category and championship.
+       If nor season ID is provided, use the external seasonid from the active rally. """
     
+    if season_external_id is None:
+        #Get current one from active rally
+        #It's also available from current_season_events
+        event, days, channels = getActiveRallyBase()
+        #The returned np.int64 is not JSON serialisable
+        season_external_id = int(event.loc[0,'season.externalId'])
+        
+    args = {"command":"getChampionship",
+            "context":{"season":{"externalId":season_external_id},
+                       "activeExternalId":_getChampionshipId(category,typ)}}
+    
+    r = s.post(SEASON_URL, data=json.dumps(args))
+
     if not r.text:
-        return None
+        championship = championshipRounds = championshipEntries = None
+        return (championship, championshipRounds, championshipEntries)
     
     championship = json_normalize(r.json()).drop(columns=['championshipRounds','championshipEntries'])
     championshipRounds = json_normalize(r.json(), 'championshipRounds' )
@@ -355,10 +391,13 @@ def getChampionship(typ='drivers'):
     return (championship, championshipRounds, championshipEntries)
 
 # + tags=["active-ipynb"]
-# championship, championshipRounds, championshipEntries = getChampionshipDrivers('manufacturers')
+# (championship, championshipRounds, championshipEntries) = getChampionship('JWRC', 'drivers')
 # display(championship)
 # display(championshipRounds.head())
 # display(championshipEntries.head())
+
+# + tags=["active-ipynb"]
+# getChampionshipCodes().to_dict(orient='index')#[int(SEASON_CATEGORIES['JWRC'])]
 # -
 
 
@@ -374,7 +413,8 @@ def getChampionshipStandings():
     r = s.post(SEASON_URL, data=json.dumps(args))
     
     if not r.text:
-        return None
+        championship_standings = round_results = None
+        return (championship_standings, round_results)
     championship_standings = json_normalize(r.json(),'entryResults', meta='championshipId').drop(columns='roundResults')
     round_results = json_normalize(r.json(),['entryResults', 'roundResults'])
 
@@ -542,7 +582,7 @@ class WRCRally(WRCRally_sbd):
         _i = self.itinerary = WRCItinerary(self.sdbRallyId)
         
         #Set a default startlistId value if required
-        if not self.startlistId and _i and not _i.legs.empty :
+        if not self.startlistId and _i and _i.legs and not _i.legs.empty :
             self.startlistId = int(_i.legs.loc[0,'startListId'])
             
         return (_i.itinerary, _i.legs, _i.sections, _i.controls, _i.stages)
