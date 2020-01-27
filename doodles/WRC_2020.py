@@ -257,12 +257,12 @@ class WRCCars(WRCRally_sdb):
 
 # + tags=["active-ipynb"]
 # WRCCars(autoseed=True)
+# -
 
-# +
 #This class will contain everything about a single rally
 class WRCRally(WRCRally_sdb):
     """Class for a rally - stuff where sdbRallyId is required."""
-    def __init__(self, sdbRallyId=None, live=False, autoseed=False ):
+    def __init__(self, sdbRallyId=None, live=False, autoseed=False, slurp=False):
         WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId, live=live,
                              autoseed=autoseed)
         
@@ -271,18 +271,24 @@ class WRCRally(WRCRally_sdb):
         self.startListId = None
         self.activerally = None
     
+        if slurp:
+            self.rallyslurper()
     
     def getItinerary(self):
         """Get itinerary.
            If rally not known, use active rally.
            Also set a default startListId."""
         
-        _i = self.itinerary = WRCItinerary(self.sdbRallyId)
+        _i = self.itinerary = WRCItinerary(self.sdbRallyId, autoseed=True)
         
+        #If necessary, set a default sdbRallyId
+        if not self.sdbRallyId:
+             self.sdbRallyId = _i.sdbRallyId
+                
         #Set a default startListId value if required
-        if not self.startListId and _i and _i.legs and not _i.legs.empty :
+        if not self.startListId and _i and hasattr(_i,'legs') and not _i.legs.empty:
             self.startListId = int(_i.legs.loc[0,'startListId'])
-            
+
         return (_i.itinerary, _i.legs, _i.sections, _i.controls, _i.stages)
  
     def getCars(self):
@@ -317,11 +323,20 @@ class WRCRally(WRCRally_sdb):
         return self.retirements
      
     
-    
+    def rallyslurper(self):
+        """Grab everything..."""
+        self.getItinerary()
+        self.getCars()
+        self.getStartlist()
+        self.getPenalties()
+        self.getRetirements()
     
 
 # +
 # NEXT TO DO - active rally class
+
+# + tags=["active-ipynb"]
+# #zz = WRCRally(slurp=True)
 
 # + tags=["active-ipynb"]
 # zz = WRCRally(autoseed=True)
