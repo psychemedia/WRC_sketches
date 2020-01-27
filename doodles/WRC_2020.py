@@ -207,14 +207,14 @@ class WRCItinerary(WRCRally_sdb):
 
 class WRCStartlist():
     """Class for WRC2020 Startlist table."""
-    def __init__(self, startlistId=None, autoseed=True):
-        self.startListId = startlistId or None
+    def __init__(self, startListId=None, autoseed=True):
+        self.startListId = startListId or None
         
         if not self.startListId:
             warnings.warn("startListId should really be set..")
         
         if self.startListId or autoseed:
-            self.fetchData(startListId)
+            self.fetchData(self.startListId)
     
     def _checkStartListId(self, startListId=None):
         """Return a startlistId or look one up."""
@@ -306,16 +306,14 @@ class WRCRally(WRCRally_sdb):
     def getPenalties(self):
         """Get penalties."""
         
-        self._penalties = WRCPenalties(self.sdbRallyId)
-        self.penalties = self._penalties.penalties
+        self.penalties = WRCPenalties(self.sdbRallyId)()
         return self.penalties
      
         
     def getRetirements(self):
         """Get retirements."""
         
-        self._retirements = WRCRetirements(self.sdbRallyId)
-        self.retirements = self._retirements.retirements
+        self.retirements = WRCRetirements(self.sdbRallyId)()
         return self.retirements
      
     
@@ -326,8 +324,8 @@ class WRCRally(WRCRally_sdb):
 # NEXT TO DO - active rally class
 
 # + tags=["active-ipynb"]
-# zz = WRCRally()
-# zz.getRetirements()
+# zz = WRCRally(autoseed=True)
+# zz.getPenalties().head()
 # -
 
 # TO DO - need a more gernal season events class?
