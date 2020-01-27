@@ -51,6 +51,8 @@ def _getresponse(_url, args):
     return r
 
 def _get_and_handle_response(_url, args, func, nargs=1, raw=False):
+    """Make a request to the API and then return a raw string
+       or parse the response with a provided parser function."""
     r =  _getresponse(_url,args) 
 
     if raw or not callable(func):
@@ -136,7 +138,7 @@ def getCurrentSeasonEvents(raw=False, func=_parseCurrentSeasonEvents):
 
 def getActiveRally():
     """Get active rally details."""
-    event, days, channels = _getActiveRally(URL)
+    event, days, channels = getActiveRallyBase(URL)
     return (event, days, channels)
 
 
