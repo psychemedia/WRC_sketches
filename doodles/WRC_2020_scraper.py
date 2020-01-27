@@ -14,6 +14,11 @@
 # ---
 
 # # Functions for grabbing data from WRC API
+#
+# This package contains a range of functions for grabbing and parsing live timing results data from the WRC website via a simple JSON API that is used to generate the official WRC live timing results web pages.
+#
+#
+# TO DO - consider a scraper class with a requests session embedded in it.
 
 import requests
 import json
@@ -40,26 +45,49 @@ URL='https://www.wrc.com/ajax.php?contelPageId=176146'
 
 
 # +
-def _getActiveRally(_url=None):
-    """Get active rally details."""
-    if not _url:
-        _url = 'https://www.wrc.com/ajax.php?contelPageId=171091'
-    
-    args= {"command":"getActiveRally","context":None}
+def _getresponse(_url, args):
+    """Simple function to get response from a post request."""
     r = s.post(_url, data=json.dumps(args))
+    return r
+
+def _get_and_handle_response(_url, args, func, nargs=1, raw=False):
+    r =  _getresponse(_url,args) 
+
+    if raw or not callable(func):
+        return r.text
+    
+    if not r.text or r.text=='null':
+        return tuple([None for i in range(nargs)])
+    
+    return func(r)
+
+
+# -
+
+ACTIVE_RALLY_URL = 'https://www.wrc.com/ajax.php?contelPageId=171091'
+
+
+# +
+def _parseActiveRally(r):
+    """Parse active rally response."""
     event = json_normalize(r.json()).drop(columns='eventDays')
     days =  json_normalize(r.json(), 'eventDays').drop(columns='spottChannel.assets')
     channels = json_normalize(r.json(), ['eventDays', 'spottChannel','assets'])
     return (event, days, channels)
 
-def getActiveRallyBase():
-    """Get active rally using alt_url """
-    event, days, channels = _getActiveRally()
-    return (event, days, channels)
+def getActiveRallyBase(_url=None, raw=False, func=_parseActiveRally):
+    """Get active rally details."""
+    
+    if not _url:
+        _url = ACTIVE_RALLY_URL  
+    args= {"command":"getActiveRally","context":None}
+    
+    return _get_and_handle_response(_url, args, func, raw)
+
 
 
 # + tags=["active-ipynb"]
-# event, days, channels = getActiveRallyBase()
+# event, days, channels = getActiveRallyBase() #also works with passing URL
 # display(event.head())
 # display(days.head())
 # display(channels.head())
@@ -72,20 +100,28 @@ def getActiveRallyBase():
 #_url = 'https://webappsdata.wrc.com/srv/wrc/json/api/wrcsrv/byType?t=%22Season%22&maxdepth=1' 
 #r = s.get(_url)
 #json_normalize(r.json())
-# -
 
-def getCurrentSeasonEvents():
-    """Get events for current season"""
-    _url='https://www.wrc.com/ajax.php?contelPageId=181782'
-    #There seems to be a second UTL giving same data?
-    #_url='https://www.wrc.com/ajax.php?contelPageId=183400'
-    args = {"command":"getActiveSeason","context":None}
-    r = s.post(_url, data=json.dumps(args))
+# + run_control={"marked": false}
+CURRENT_SEASON_URL = 'https://www.wrc.com/ajax.php?contelPageId=181782'
+
+
+# +
+def _parseCurrentSeasonEvents(r):
+    """Parse current season events response."""
     current_season_events = json_normalize(r.json(), ['rallyEvents', 'items'], meta='seasonYear').drop(columns='eventDays')
     eventdays = json_normalize(r.json(), ['rallyEvents', 'items', 'eventDays']).drop(columns='spottChannel.assets')
     eventchannel = json_normalize(r.json(), ['rallyEvents', 'items', 'eventDays', 'spottChannel','assets'])
     return (current_season_events, eventdays, eventchannel)
 
+def getCurrentSeasonEvents(raw=False, func=_parseCurrentSeasonEvents):
+    """Get events for current season"""
+    _url=CURRENT_SEASON_URL
+    #There seems to be a second UTL giving same data?
+    #_url='https://www.wrc.com/ajax.php?contelPageId=183400'
+    args = {"command":"getActiveSeason","context":None}
+
+    return _get_and_handle_response(_url, args, func, nargs=3, raw=raw)
+        
 
 
 # + tags=["active-ipynb"]
@@ -109,19 +145,12 @@ def getActiveRally():
 # display(event)
 # display(days)
 # display(channels.head())
-# -
 
+# +
 #This seems to work with sdbRallyId=None, returning active rally?
-def getItinerary(sdbRallyId=None):
-    """Get itinerary details for specified rally."""
-    args = {"command":"getItinerary",
-            "context":{"sdbRallyId":sdbRallyId}}
-    r = s.post(URL, data=json.dumps(args))
-    
-    if not r.text or r.text=='null':
-        itinerary = legs = sections = controls = stages = None
-        return (itinerary, legs, sections, controls, stages)
-    
+
+def _parseItinerary(r):
+    """Parse itninerary response."""
     itinerary = json_normalize(r.json()).drop(columns='itineraryLegs')
     legs = json_normalize(r.json(),'itineraryLegs' )
     if not legs.empty:
@@ -133,6 +162,14 @@ def getItinerary(sdbRallyId=None):
         legs = sections = controls = stages = None
     return (itinerary, legs, sections, controls, stages)
 
+def getItinerary(sdbRallyId=None, raw=False, func=_parseItinerary):
+    """Get itinerary details for specified rally."""
+    args = {"command":"getItinerary",
+            "context":{"sdbRallyId":sdbRallyId}}
+    
+    return _get_and_handle_response(URL, args, func, nargs=5, raw=raw)
+
+
 
 # + tags=["active-ipynb"]
 # sdbRallyId = 100
@@ -142,23 +179,21 @@ def getItinerary(sdbRallyId=None):
 # display(sections.head())
 # display(controls.head())
 # display(stages.head())
-# -
 
-def getStartlist(startListId):
-    """Get a startlist given startlist ID."""
-    args={'command': 'getStartlist',
-          'context': {'activeItineraryLeg': { 'startListId': startListId} }}
-    r = s.post(URL, data=json.dumps(args))
-    
-    if not r.text or r.text=='null':
-        startList = startListItems = None
-        return (startList,startListItems)
-    
+# +
+def _parseStartlist(r):
+    """Parse raw startlist response."""
     startList = json_normalize(r.json()).drop(columns='startListItems')
     startListItems = json_normalize(r.json(), 'startListItems')
     
     return (startList,startListItems)
-    
+
+def getStartlist(startListId, raw=False, func=_parseStartlist):
+    """Get a startlist given startlist ID."""
+    args={'command': 'getStartlist',
+          'context': {'activeItineraryLeg': { 'startListId': startListId} }}
+
+    return _get_and_handle_response(URL, args, func, nargs=2, raw=raw)
 
 
 # + tags=["active-ipynb"]
@@ -421,10 +456,3 @@ def getChampionshipStandings(category='WRC',typ='drivers',
 # championship_standings, round_results = getChampionshipStandings()
 # display(championship_standings.head())
 # display(round_results.head())
-# -
-
-
-
-
-
-
