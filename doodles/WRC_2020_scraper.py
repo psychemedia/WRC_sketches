@@ -58,6 +58,7 @@ def _get_and_handle_response(_url, args, func, nargs=1, raw=False):
     if raw or not callable(func):
         return r.text
     
+    #Make sure we return the desired number of None items in a tuple as a null response
     if not r.text or r.text=='null':
         return tuple([None for i in range(nargs)])
     
@@ -203,19 +204,19 @@ def getStartlist(startListId, raw=False, func=_parseStartlist):
 # startList,startListItems = getStartlist(startListId)
 # display(startList.head())
 # display(startListItems.head())
-# -
 
-def getCars(sdbRallyId):
-    """Get cars for a specified rally."""
-    args = {"command":"getCars","context":{"sdbRallyId":100}}
-    r = s.post(URL, data=json.dumps(args))
-    if not r.text or r.text=='null':
-        cars = classes = None
-        return (cars, classes)
-    
+# +
+def _parseCars(r):
+    """Parser for raw cars response."""
     cars = json_normalize(r.json()).drop(columns='eventClasses')
     classes = json_normalize(r.json(), 'eventClasses')
     return (cars, classes)
+
+def getCars(sdbRallyId, raw=False, func=_parseCars):
+    """Get cars for a specified rally."""
+    args = {"command":"getCars","context":{"sdbRallyId":100}}
+    
+    return _get_and_handle_response(URL, args, func, nargs=2, raw=raw)
 
 
 # + tags=["active-ipynb"]
@@ -223,16 +224,20 @@ def getCars(sdbRallyId):
 # display(cars.head())
 # display(classes.head())
 # cars.head().columns
-# -
 
-def getRally(sdbRallyId):
-    """Get rally details for specified rally."""
-    args = {"command":"getRally","context":{"sdbRallyId":sdbRallyId}}
-    r = s.post(URL, data=json.dumps(args))
+# +
+def _parseRally(r):
+    """Parser for raw rally response."""
     rally = json_normalize(r.json()).drop(columns=['eligibilities','groups'])
     eligibilities = json_normalize(r.json(),'eligibilities')
     groups = json_normalize(r.json(),'groups')
     return (rally, eligibilities, groups)
+
+def getRally(sdbRallyId, raw=False, func=_parseRally):
+    """Get rally details for specified rally."""
+    args = {"command":"getRally","context":{"sdbRallyId":sdbRallyId}}
+
+    return _get_and_handle_response(URL, args, func, nargs=3, raw=raw)
 
 
 # + tags=["active-ipynb"]
@@ -240,32 +245,40 @@ def getRally(sdbRallyId):
 # display(rally.head())
 # display(eligibilities.head())
 # display(groups.head())
-# -
 
-def getOverall(sdbRallyId, stageId):
+# +
+def _parseOverall(r):
+    """Parser for raw overall response."""
+    overall = json_normalize(r.json())
+    return overall
+
+def getOverall(sdbRallyId, stageId, raw=False, func=_parseOverall):
     """Get overall standings for specificed rally and stage."""
     args = {"command":"getOverall","context":{"sdbRallyId":sdbRallyId,
                                               "activeStage":{"stageId":stageId}}}
-    r = s.post(URL, data=json.dumps(args))
-    overall = json_normalize(r.json())
-    return overall
+
+    return _get_and_handle_response(URL, args, func, nargs=2, raw=raw)
 
 
 # + tags=["active-ipynb"]
 # stageId = 1528
 # overall = getOverall(sdbRallyId, stageId)
 # overall.head()
-# -
 
-def getSplitTimes(sdbRallyId,stageId):
-    """Get split times for specified rally and stage."""
-    args = {"command":"getSplitTimes",
-            "context":{"sdbRallyId":sdbRallyId, "activeStage":{"stageId":stageId}}}
-    r = s.post(URL, data=json.dumps(args))
+# +
+def _parseSplitTimes(r):
+    """Parser for raw splittimes response."""
     splitPoints = json_normalize(r.json(),'splitPoints')
     entrySplitPointTimes = json_normalize(r.json(), 'entrySplitPointTimes').drop(columns='splitPointTimes')
     splitPointTimes = json_normalize(r.json(), ['entrySplitPointTimes','splitPointTimes'])
     return (splitPoints, entrySplitPointTimes, splitPointTimes)
+
+def getSplitTimes(sdbRallyId,stageId, raw=False, func=_parseSplitTimes):
+    """Get split times for specified rally and stage."""
+    args = {"command":"getSplitTimes",
+            "context":{"sdbRallyId":sdbRallyId, "activeStage":{"stageId":stageId}}}
+
+    return _get_and_handle_response(URL, args, func, nargs=3, raw=raw)
 
 
 # + tags=["active-ipynb"]
@@ -273,30 +286,38 @@ def getSplitTimes(sdbRallyId,stageId):
 # display(splitPoints.head())
 # display(entrySplitPointTimes.head())
 # display(splitPointTimes.head())
-# -
 
-def getStageTimes(sdbRallyId,stageId):
+# +
+def _parseStageTimes(r):
+    """Parser for raw stagetimes response."""
+    stagetimes = json_normalize(r.json())
+    return stagetimes
+
+def getStageTimes(sdbRallyId,stageId, raw=False, func=_parseStageTimes):
     """Get stage times for specified rally and stage"""
     args = {"command":"getStageTimes",
             "context":{"sdbRallyId":sdbRallyId,
                        "activeStage":{"stageId":stageId}}}
-    r = s.post(URL, data=json.dumps(args))
-    stagetimes = json_normalize(r.json())
-    return stagetimes
+
+    return _get_and_handle_response(URL, args, func, nargs=1, raw=raw)
 
 
 # + tags=["active-ipynb"]
 # stagetimes = getStageTimes(sdbRallyId,stageId)
 # stagetimes.head()
-# -
 
-def getStagewinners(sdbRallyId):
+# + run_control={"marked": false}
+def _parseStagewinners(r):
+    """Parser for raw stagewinners response."""
+    stagewinners = json_normalize(r.json())
+    return stagewinners
+
+def getStagewinners(sdbRallyId, raw=False, func=_parseStagewinners):
     """Get stage winners for specified rally."""
     args = {"command":"getStagewinners",
             "context":{"sdbRallyId":sdbRallyId}}
-    r = s.post(URL, data=json.dumps(args))
-    stagewinners = json_normalize(r.json())
-    return stagewinners
+
+    return _get_and_handle_response(URL, args, func, nargs=1, raw=raw)
 
 
 # + tags=["active-ipynb"]
@@ -311,39 +332,39 @@ def getStagewinners(sdbRallyId):
 # We need to be consistent so we can have a common, consistent way of dealing with empty responses. This means things like `is None` or `pd.DataFrame().empty` both have to be handled.
 
 # +
-COLS_PENALTIES=['penaltyId','controlId','entryId','penaltyDurationMs','penaltyDuration','reason']
-               
-def getPenalties(sdbRallyId):
+#COLS_PENALTIES=['penaltyId','controlId','entryId','penaltyDurationMs','penaltyDuration','reason']
+
+def _parsePenalties(r):
+    """Parser for raw penalties response."""
+    penalties = json_normalize(r.json())
+    return penalties
+
+def getPenalties(sdbRallyId, raw=False, func=_parsePenalties):
     """Get penalties for specified rally."""
     args = {"command":"getPenalties",
             "context":{"sdbRallyId":sdbRallyId}}
-    r = s.post(URL, data=json.dumps(args))
     
-    if not r.text:
-        return pd.DataFrame(columns=COLS_PENALTIES)
-    
-    penalties = json_normalize(r.json())
-    return penalties
+    return _get_and_handle_response(URL, args, func, nargs=1, raw=raw)
 
 
 # + tags=["active-ipynb"]
 # penalties = getPenalties(sdbRallyId)
 # penalties.head()
 
-# +
-COLS_RETIREMENT = ['retirementId','controlId','entryId','reason','retirementDateTime','retirementDateTimeLocal','status']
+# + run_control={"marked": false}
+#COLS_RETIREMENT = ['retirementId','controlId','entryId','reason','retirementDateTime','retirementDateTimeLocal','status']
 
-def getRetirements(sdbRallyId):
+def _parseRetirements(r):
+    """Parser for raw retirements response."""   
+    retirements = json_normalize(r.json())
+    return retirements
+
+def getRetirements(sdbRallyId, raw=False, func=_parseRetirements):
     """Get retirements for specified rally."""
     args = {"command":"getRetirements",
             "context":{"sdbRallyId":sdbRallyId}}
-    r = s.post(URL, data=json.dumps(args))
-    
-    if not r.text:
-        return pd.DataFrame(columns=COLS_RETIREMENT)
-    
-    retirements = json_normalize(r.json())
-    return retirements
+
+    return _get_and_handle_response(URL, args, func, nargs=1, raw=raw)
 
 
 # + tags=["active-ipynb"]
@@ -358,14 +379,18 @@ SEASON_URL = 'https://www.wrc.com/ajax.php?contelPageId=186641'
 SEASON_CATEGORIES = {'WRC':"35", "WRC2":"46", "WRC3":"49","JWRC":"58"}
 
 
-def getSeasonCategory(seasonCategory=SEASON_CATEGORIES['WRC']): 
+# +
+def _parseSeasonCategory(r):
+    """Parser for raw season category response."""
+    season_category = json_normalize(r.json())
+    return season_category
+
+def getSeasonCategory(seasonCategory=SEASON_CATEGORIES['WRC'], raw=False, func=_parseSeasonCategory): 
     """Get championships in season category."""
     args = {"command":"getSeasonCategory",
             "context":{"seasonCategory":seasonCategory}}
-    r = s.post(SEASON_URL, data=json.dumps(args))
-    if not r.text:
-        return None
-    return json_normalize(r.json())
+
+    return _get_and_handle_response(SEASON_URL, args, func, nargs=1, raw=raw)
 
 
 # + tags=["active-ipynb"]
@@ -402,26 +427,28 @@ def _getChampionshipId(category='WRC', typ='drivers'):
     activeExternalId = championship_activeExternalId[typ]
     return activeExternalId
 
-def getChampionship(category='WRC',typ='drivers',
-                    season_external_id=None, ):
-    """Get Championship details for specified category and championship.
-       If nor season ID is provided, use the external seasonid from the active rally. """
-    
-    season_external_id = SeasonBase(season_external_id, autoseed=True).season_external_id
-    args = {"command":"getChampionship",
-            "context":{"season":{"externalId":season_external_id},
-                       "activeExternalId":_getChampionshipId(category,typ)}}
-    
-    r = s.post(SEASON_URL, data=json.dumps(args))
+def _getSeasonId(): 
+    event, days, channels = getActiveRallyBase()
+    return int(event.loc[0,'season.externalId'])
 
-    if not r.text:
-        championship = championshipRounds = championshipEntries = None
-        return (championship, championshipRounds, championshipEntries)
-    
+def _parseChampionship(r):
+    """Parser for raw championship response."""
     championship = json_normalize(r.json()).drop(columns=['championshipRounds','championshipEntries'])
     championshipRounds = json_normalize(r.json(), 'championshipRounds' )
     championshipEntries = json_normalize(r.json(), 'championshipEntries')
     return (championship, championshipRounds, championshipEntries)
+    
+def getChampionship(category='WRC',typ='drivers',
+                    season_external_id=None, raw=False, func=_parseChampionship):
+    """Get Championship details for specified category and championship.
+       If nor season ID is provided, use the external seasonid from the active rally. """
+    
+    season_external_id = _getSeasonId()
+    args = {"command":"getChampionship",
+            "context":{"season":{"externalId":season_external_id},
+                       "activeExternalId":_getChampionshipId(category,typ)}}
+
+    return _get_and_handle_response(SEASON_URL, args, func, nargs=3, raw=raw)
 
 
 # + tags=["active-ipynb"]
@@ -432,29 +459,31 @@ def getChampionship(category='WRC',typ='drivers',
 
 # + tags=["active-ipynb"]
 # getChampionshipCodes().to_dict(orient='index')#[int(SEASON_CATEGORIES['JWRC'])]
-# -
 
+# +
+def _parseChampionshipStandings(r):
+    """Parser for raw champioship standings response."""
+    championship_standings = json_normalize(r.json(),'entryResults', meta='championshipId').drop(columns='roundResults')
+    round_results = json_normalize(r.json(),['entryResults', 'roundResults'])
+
+    return (championship_standings, round_results)
+    
 def getChampionshipStandings(category='WRC',typ='drivers',
-                             season_external_id=None, ):
+                             season_external_id=None, raw=False, func=_parseChampionshipStandings ):
     """Get championship standings."""
-    season_external_id = SeasonBase(season_external_id, autoseed=True).season_external_id
+    season_external_id = _getSeasonId()
     args = {"command":"getChampionshipStandings",
             "context":{
                        "season":{"externalId":season_external_id,
                                  },
                        "activeExternalId":_getChampionshipId(category,typ)}}
-    r = s.post(SEASON_URL, data=json.dumps(args))
-    
-    if not r.text:
-        championship_standings = round_results = None
-        return (championship_standings, round_results)
-    championship_standings = json_normalize(r.json(),'entryResults', meta='championshipId').drop(columns='roundResults')
-    round_results = json_normalize(r.json(),['entryResults', 'roundResults'])
 
-    return (championship_standings, round_results)
+    return _get_and_handle_response(SEASON_URL, args, func, nargs=2, raw=raw)
 
 
 # + tags=["active-ipynb"]
 # championship_standings, round_results = getChampionshipStandings()
 # display(championship_standings.head())
 # display(round_results.head())
+# -
+
