@@ -208,17 +208,28 @@ def _parseStartlist(r):
     
     return (startList,startListItems)
 
-def getStartlist(startListId, raw=False, func=_parseStartlist):
-    """Get a startlist given startlist ID."""
+
+# TO DO - so can get a startlist for a not active leg?
+
+def getActiveLegStartlist(startListId, raw=False, func=_parseStartlist):
+    """Get a startlist for the active itinerary leg."""
     args={'command': 'getStartlist',
           'context': {'activeItineraryLeg': { 'startListId': startListId} }}
 
     return _get_and_handle_response(URL, args, func, nargs=2, raw=raw)
 
 
+def getStartlist(startListId='activeleg', raw=False):
+    """Get a generic startlist."""
+    if startListId=='activeleg':
+        return getActiveLegStartlist()
+    
+    return (None, None)
+
+
 # + tags=["active-ipynb"]
 # startListId = 451
-# startList,startListItems = getStartlist(startListId)
+# startList,startListItems = getActiveLegStartlist(startListId)
 # display(startList.head())
 # display(startListItems.head())
 
