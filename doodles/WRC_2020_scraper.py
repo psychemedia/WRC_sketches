@@ -58,7 +58,7 @@ URL='https://www.wrc.com/ajax.php?contelPageId=176146'
 # +
 def _getresponse(_url, args, ss={'conn':None}, secondtry=False):
     """Simple function to get response from a post request."""
-    
+    r=None
     if ss['conn'] is None or secondtry:
         try:
             ss['conn'] = requests.Session()
@@ -304,6 +304,7 @@ def _parseRally(r):
     """Parser for raw rally response."""
     rally = json_normalize(r.json()).drop(columns=['eligibilities','groups'])
     eligibilities = json_normalize(r.json(),'eligibilities', meta='rallyId')
+    eligibilities.rename(columns={0:'category'}, inplace=True)
     groups = json_normalize(r.json(),'groups', meta='rallyId')
     return (rally, eligibilities, groups)
 
