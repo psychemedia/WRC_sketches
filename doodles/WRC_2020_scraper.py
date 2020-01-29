@@ -31,11 +31,24 @@ requests_cache.install_cache('wrc_cache',
                              backend='sqlite',
                              expire_after=300)
 
+
 # + tags=["active-ipynb"]
 # # TO DO 
 # # There is also an: activeSeasonId":19
 # # IS there something we can get there?
 # -
+
+# TO DO - this should go into a general utils package
+def _jsInt(val):
+    """Ensure we have a JSON serialisable value for an int.
+       The defends against non-JSON-serialisable np.int64."""
+    try:
+        val = int(val)
+    except:
+        val = None
+        
+    return val
+
 
 #Is this URL constant or picked up relative to each rally?
 URL='https://www.wrc.com/ajax.php?contelPageId=176146'
@@ -172,7 +185,7 @@ def _parseItinerary(r):
 def getItinerary(sdbRallyId=None, raw=False, func=_parseItinerary):
     """Get itinerary details for specified rally."""
     args = {"command":"getItinerary",
-            "context":{"sdbRallyId":sdbRallyId}}
+            "context":{"sdbRallyId":_jsInt(sdbRallyId)}}
     
     return _get_and_handle_response(URL, args, func, nargs=5, raw=raw)
 
@@ -208,10 +221,6 @@ def getStartlist(startListId, raw=False, func=_parseStartlist):
 # startList,startListItems = getStartlist(startListId)
 # display(startList.head())
 # display(startListItems.head())
-# -
-
-startList
-
 
 # +
 def _parseCars(r):
@@ -222,7 +231,7 @@ def _parseCars(r):
 
 def getCars(sdbRallyId, raw=False, func=_parseCars):
     """Get cars for a specified rally."""
-    args = {"command":"getCars","context":{"sdbRallyId":100}}
+    args = {"command":"getCars","context":{"sdbRallyId":_jsInt(sdbRallyId)}}
     
     return _get_and_handle_response(URL, args, func, nargs=2, raw=raw)
 
@@ -243,7 +252,7 @@ def _parseRally(r):
 
 def getRally(sdbRallyId, raw=False, func=_parseRally):
     """Get rally details for specified rally."""
-    args = {"command":"getRally","context":{"sdbRallyId":sdbRallyId}}
+    args = {"command":"getRally","context":{"sdbRallyId":_jsInt(sdbRallyId)}}
 
     return _get_and_handle_response(URL, args, func, nargs=3, raw=raw)
 
@@ -262,8 +271,8 @@ def _parseOverall(r):
 
 def getOverall(sdbRallyId, stageId, raw=False, func=_parseOverall):
     """Get overall standings for specificed rally and stage."""
-    args = {"command":"getOverall","context":{"sdbRallyId":sdbRallyId,
-                                              "activeStage":{"stageId":stageId}}}
+    args = {"command":"getOverall","context":{"sdbRallyId":_jsInt(sdbRallyId),
+                                              "activeStage":{"stageId":_jsInt(stageId)}}}
 
     return _get_and_handle_response(URL, args, func, nargs=2, raw=raw)
 
@@ -284,7 +293,8 @@ def _parseSplitTimes(r):
 def getSplitTimes(sdbRallyId,stageId, raw=False, func=_parseSplitTimes):
     """Get split times for specified rally and stage."""
     args = {"command":"getSplitTimes",
-            "context":{"sdbRallyId":sdbRallyId, "activeStage":{"stageId":stageId}}}
+            "context":{"sdbRallyId":_jsInt(sdbRallyId),
+                       "activeStage":{"stageId":_jsInt(stageId)}}}
 
     return _get_and_handle_response(URL, args, func, nargs=3, raw=raw)
 
@@ -304,8 +314,8 @@ def _parseStageTimes(r):
 def getStageTimes(sdbRallyId,stageId, raw=False, func=_parseStageTimes):
     """Get stage times for specified rally and stage"""
     args = {"command":"getStageTimes",
-            "context":{"sdbRallyId":sdbRallyId,
-                       "activeStage":{"stageId":stageId}}}
+            "context":{"sdbRallyId":_jsInt(sdbRallyId),
+                       "activeStage":{"stageId":_jsInt(stageId)}}}
 
     return _get_and_handle_response(URL, args, func, nargs=1, raw=raw)
 
@@ -323,7 +333,7 @@ def _parseStagewinners(r):
 def getStagewinners(sdbRallyId, raw=False, func=_parseStagewinners):
     """Get stage winners for specified rally."""
     args = {"command":"getStagewinners",
-            "context":{"sdbRallyId":sdbRallyId}}
+            "context":{"sdbRallyId":_jsInt(sdbRallyId)}}
 
     return _get_and_handle_response(URL, args, func, nargs=1, raw=raw)
 
@@ -350,7 +360,7 @@ def _parsePenalties(r):
 def getPenalties(sdbRallyId, raw=False, func=_parsePenalties):
     """Get penalties for specified rally."""
     args = {"command":"getPenalties",
-            "context":{"sdbRallyId":sdbRallyId}}
+            "context":{"sdbRallyId":_jsInt(sdbRallyId)}}
     
     return _get_and_handle_response(URL, args, func, nargs=1, raw=raw)
 
@@ -370,7 +380,7 @@ def _parseRetirements(r):
 def getRetirements(sdbRallyId, raw=False, func=_parseRetirements):
     """Get retirements for specified rally."""
     args = {"command":"getRetirements",
-            "context":{"sdbRallyId":sdbRallyId}}
+            "context":{"sdbRallyId":_jsInt(sdbRallyId)}}
 
     return _get_and_handle_response(URL, args, func, nargs=1, raw=raw)
 

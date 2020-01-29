@@ -436,6 +436,8 @@ except asyncio.CancelledError:
     pass
 ```
 
+Preventing items from trying to access same resource at same time? [`async with lock`](https://docs.python.org/3/library/asyncio-sync.html)
+
 ```python
 
 ```
