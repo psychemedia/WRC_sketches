@@ -310,28 +310,21 @@ def _checkattr(obj,attr):
 
 # -
 
-class WRCRally_stage(WRCRally_sdb):
-    """Base class for things with a stageId.
-       Can also help find a stageId list for a given rally."""
+class WRCRally_stages(WRCRally_sdb):
+    """Class referring to all rally stages."""
     def __init__(self, sdbRallyId=None, stageId=None, live=False,
                  autoseed=False, nowarn=True,):
         WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId,
-                              live=live, autoseed=autoseed, nowarn=False)
-        
-        if not nowarn and not sdbRallyId:
-            warnings.warn("sdbRallyId should really be set...")
-        if not nowarn and not stageId:
-            warnings.warn("stageId should really be set...")
+                              live=live, autoseed=autoseed, nowarn=nowarn)
         
         self.sdbRallyId = sdbRallyId or None
-        self.stageId = stageId or None
+        self.stages = None
         
         if autoseed:
-            self._rallyStages(self.sdbRallyId, self.stageId)
-    
+            self._rallyStages(self.sdbRallyId)
+
     def _rallyStages(self, sdbRallyId=None, stageId=None):
-        """Return a stageId list or lookup list of active rally."""
-        stageId = stageId or self.stageId
+        """Return a stages list or lookup list for active rally."""
         
         #Have we got an sdbRallyId?
         if not hasattr(self, 'sdbRallyId') or not self.sdbRallyId:
@@ -345,13 +338,40 @@ class WRCRally_stage(WRCRally_sdb):
             self.itinerary = WRCItinerary(self.sdbRallyId, autoseed=True)
         
         _ccols=['code']+(list(set(self.itinerary.controls.columns) - set(self.itinerary.stages.columns)))
-        return (self.sdbRallyId, self.itinerary.stages.merge(self.itinerary.controls[_ccols], on='code'))
+        self.stages=self.itinerary.stages.merge(self.itinerary.controls[_ccols], on='code')
+        return (self.sdbRallyId, self.stages)
 
 
-zz=WRCRally_stage(autoseed=True)
+zz=WRCRally_stages(autoseed=True)
 zz.itinerary.stages # stages / controls
-zz._rallyStages()[1]
+zz._rallyStages()[1].head()
 
+
+# +
+class WRCRally_stage(WRCRally_sdb, WRCRally_stages):
+    """Base class for things with a stageId.
+       Can also help find a stageId list for a given rally."""
+    def __init__(self, sdbRallyId=None, stageId=None, live=False,
+                 autoseed=False, nowarn=True,):
+        WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId,
+                              live=live, autoseed=autoseed, nowarn=False)
+        WRCRally_stages.__init__(self, sdbRallyId=sdbRallyId,
+                                 live=live, autoseed=autoseed, nowarn=False)
+        
+        if not nowarn and not sdbRallyId:
+            warnings.warn("sdbRallyId should really be set...")
+        if not nowarn and not stageId:
+            warnings.warn("stageId should really be set...")
+        
+        self.sdbRallyId = sdbRallyId or None
+        self.stageId = stageId or None
+        
+        
+    
+ 
+# -
+
+zz=WRCRally_stage()
 
 
 class WRCSplitTimes(WRCRally_sdb):
