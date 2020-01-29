@@ -31,9 +31,6 @@ requests_cache.install_cache('wrc_cache',
                              backend='sqlite',
                              expire_after=300)
 
-s = requests.Session()
-s.get('https://www.wrc.com')
-
 # + tags=["active-ipynb"]
 # # TO DO 
 # # There is also an: activeSeasonId":19
@@ -45,21 +42,40 @@ URL='https://www.wrc.com/ajax.php?contelPageId=176146'
 
 
 # +
-def _getresponse(_url, args):
+def _getresponse(_url, args, ss={'conn':None}, secondtry=False):
     """Simple function to get response from a post request."""
-    r = s.post(_url, data=json.dumps(args))
+    
+    if ss['conn'] is None or secondtry:
+        ss['conn'] = requests.Session()
+        try:
+            ss['conn'].get('https://www.wrc.com')
+        except:
+            return None
+        
+    try:
+        r = ss['conn'].post(_url, data=json.dumps(args))
+    except: #requests.exceptions.ConnectionError:
+        if not secondtry:
+            #If there's an error, try once again
+            try:
+                _getresponse(_url, args, secondtry=True)
+            except:
+                return None
+        else:
+            return None
+            
     return r
 
 def _get_and_handle_response(_url, args, func, nargs=1, raw=False):
     """Make a request to the API and then return a raw string
        or parse the response with a provided parser function."""
-    r =  _getresponse(_url,args) 
-
+   
+    r =  _getresponse(_url,args)
     if raw or not callable(func):
         return r.text
     
     #Make sure we return the desired number of None items in a tuple as a null response
-    if not r.text or r.text=='null':
+    if not r or r is None or not r.text or r.text=='null':
         return tuple([None for i in range(nargs)])
     
     return func(r)
@@ -78,19 +94,19 @@ def _parseActiveRally(r):
     channels = json_normalize(r.json(), ['eventDays', 'spottChannel','assets'])
     return (event, days, channels)
 
-def getActiveRallyBase(_url=None, raw=False, func=_parseActiveRally):
+def getActiveRally(_url=None, raw=False, func=_parseActiveRally):
     """Get active rally details."""
     
     if not _url:
         _url = ACTIVE_RALLY_URL  
     args= {"command":"getActiveRally","context":None}
     
-    return _get_and_handle_response(_url, args, func, raw)
+    return _get_and_handle_response(_url, args, func, nargs=3, raw=raw)
 
 
 
 # + tags=["active-ipynb"]
-# event, days, channels = getActiveRallyBase() #also works with passing URL
+# event, days, channels = getActiveRally() #also works with passing URL
 # display(event.head())
 # display(days.head())
 # display(channels.head())
@@ -136,18 +152,6 @@ def getCurrentSeasonEvents(raw=False, func=_parseCurrentSeasonEvents):
 # -
 
 # ## getItinerary
-
-def getActiveRally():
-    """Get active rally details."""
-    event, days, channels = getActiveRallyBase(URL)
-    return (event, days, channels)
-
-
-# + tags=["active-ipynb"]
-# event, days, channels = getActiveRally()
-# display(event)
-# display(days)
-# display(channels.head())
 
 # +
 #This seems to work with sdbRallyId=None, returning active rally?
@@ -204,6 +208,10 @@ def getStartlist(startListId, raw=False, func=_parseStartlist):
 # startList,startListItems = getStartlist(startListId)
 # display(startList.head())
 # display(startListItems.head())
+# -
+
+startList
+
 
 # +
 def _parseCars(r):
