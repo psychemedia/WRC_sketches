@@ -370,7 +370,6 @@ def _checkattr(obj,attr):
    
 class WRCRally_stages(WRCRally_sdb):
     """Class referring to all rally stages."""
-    def __init__(self, sdbRallyId=None, stageId=None, live=False,
     def __init__(self, sdbRallyId=None, live=False,
                  autoseed=False, nowarn=True,):
         WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId,
@@ -382,20 +381,19 @@ class WRCRally_stages(WRCRally_sdb):
         if autoseed:
             self._rallyStages(self.sdbRallyId)
 
-    def _rallyStages(self, sdbRallyId=None, stageId=None):
+    def _rallyStages(self, sdbRallyId=None):
         """Return a stages list or lookup list for active rally."""
-        
         #Have we got an sdbRallyId?
         if not hasattr(self, 'sdbRallyId') or not self.sdbRallyId:
             self.activerally = WRCActiveRally()
             self.sdbRallyId = self.activerally.sdbRallyId
             self.name = self.activerally.name
-        
+
         #The stages are in the stages return value from the itinerary
         #itinerary, legs, sections, controls, stages = getItinerary(sdbRallyId)
         if not hasattr(self, 'itinerary') or not _checkattr(self,'itinerary.stages'):
             self.itinerary = WRCItinerary(self.sdbRallyId, autoseed=True)
-        
+
         _ccols=['code']+(list(set(self.itinerary.controls.columns) - set(self.itinerary.stages.columns)))
         self.stages=self.itinerary.stages.merge(self.itinerary.controls[_ccols], on='code')
         return (self.sdbRallyId, self.stages)
@@ -407,13 +405,11 @@ zz._rallyStages()[1].head()
 
 
 # +
-class WRCRally_stage(WRCRally_sdb, WRCRally_stages):
+class WRCRally_stage(WRCRally_stages):
     """Base class for things with a stageId.
        Can also help find a stageId list for a given rally."""
     def __init__(self, sdbRallyId=None, stageId=None, live=False,
                  autoseed=False, nowarn=True,):
-        WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId,
-                              live=live, autoseed=autoseed, nowarn=False)
         WRCRally_stages.__init__(self, sdbRallyId=sdbRallyId,
                                  live=live, autoseed=autoseed, nowarn=False)
         
