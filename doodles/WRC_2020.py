@@ -27,7 +27,7 @@ from WRC_2020_scraper import *
 class SeasonBase:
     """Base class for things to do with seasons."""
     def __init__(self, season_external_id=None, autoseed=False):
-        self.season_external_id = season_external_id or None
+        self.season_external_id = jsInt(season_external_id)
         if not self.season_external_id and autoseed:
             self._check_season_external_id()
             
@@ -36,7 +36,7 @@ class SeasonBase:
         if not hasattr(self,'season_external_id') or not self.season_external_id:
             #Get current one from active rally
             #It's also available from current_season_events
-            event, days, channels = getActiveRallyBase()
+            event, days, channels = getActiveRally()
             self.event, self.days, self.channels = event, days, channels
             #The returned np.int64 is not JSON serialisable
             self.season_external_id = int(event.loc[0,'season.externalId'])
@@ -102,23 +102,35 @@ class WRC2020(WRCEvent):
 # TO DO - define a class for each table
 import warnings
 
+# TO DO - this should go into a general utils package
+def _jsInt(val):
+    """Ensure we have a JSON serialisable value for an int.
+       The defends against non-JSON-serialisable np.int64."""
+    try:
+        val = int(val)
+    except:
+        val = None
+        
+    return val
 
 class WRCRally_sdb:
     """Base class for things with an sdbRallyId.
        Can also help find an active sdbRallyId"""
     def __init__(self, sdbRallyId=None, live=False,
                  autoseed=False, nowarn=True,):
+
         if not nowarn and not sdbRallyId:
             warnings.warn("sdbRallyId should really be set...")
         
-        self.sdbRallyId = sdbRallyId or None
+        self.sdbRallyId = _jsInt(sdbRallyId)
         
         if autoseed:
             self._checkRallyId(sdbRallyId)
     
     def _checkRallyId(self, sdbRallyId=None):
         """Return a rally ID or lookup active one."""
-        sdbRallyId = int(sdbRallyId) or self.sdbRallyId
+        
+        sdbRallyId = _jsInt(sdbRallyId) or self.sdbRallyId
         if not hasattr(self, 'sdbRallyId') or not self.sdbRallyId:
             self.activerally = WRCActiveRally()
             self.sdbRallyId = self.activerally.sdbRallyId
@@ -249,7 +261,7 @@ class WRCItinerary(WRCRally_sdb):
 class WRCStartlist():
     """Class for WRC2020 Startlist table."""
     def __init__(self, startListId=None, autoseed=True):
-        self.startListId = startListId or None
+        self.startListId = jsInt(startListId)
         
         if not self.startListId:
             warnings.warn("startListId should really be set..")
@@ -354,16 +366,17 @@ def _checkattr(obj,attr):
     return False
 
 
-# -
-
+# +
+   
 class WRCRally_stages(WRCRally_sdb):
     """Class referring to all rally stages."""
     def __init__(self, sdbRallyId=None, stageId=None, live=False,
+    def __init__(self, sdbRallyId=None, live=False,
                  autoseed=False, nowarn=True,):
         WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId,
                               live=live, autoseed=autoseed, nowarn=nowarn)
         
-        self.sdbRallyId = sdbRallyId or None
+        self.sdbRallyId = _jsInt(sdbRallyId)
         self.stages = None
         
         if autoseed:
@@ -408,9 +421,9 @@ class WRCRally_stage(WRCRally_sdb, WRCRally_stages):
             warnings.warn("sdbRallyId should really be set...")
         if not nowarn and not stageId:
             warnings.warn("stageId should really be set...")
+
+        self.stageId = jsInt(stageId)
         
-        self.sdbRallyId = sdbRallyId or None
-        self.stageId = stageId or None
         
         
     
