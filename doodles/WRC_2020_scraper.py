@@ -138,14 +138,15 @@ CURRENT_SEASON_URL = 'https://www.wrc.com/ajax.php?contelPageId=181782'
 
 
 # +
-def _parseCurrentSeasonEvents(r):
+def _parseActiveSeasonEvents(r):
     """Parse current season events response."""
     current_season_events = json_normalize(r.json(), ['rallyEvents', 'items'], meta='seasonYear').drop(columns='eventDays')
     eventdays = json_normalize(r.json(), ['rallyEvents', 'items', 'eventDays']).drop(columns='spottChannel.assets')
     eventchannel = json_normalize(r.json(), ['rallyEvents', 'items', 'eventDays', 'spottChannel','assets'])
     return (current_season_events, eventdays, eventchannel)
 
-def getCurrentSeasonEvents(raw=False, func=_parseCurrentSeasonEvents):
+# TO DO - can we get events for other seasons?
+def getActiveSeasonEvents(raw=False, func=_parseActiveSeasonEvents):
     """Get events for current season"""
     _url=CURRENT_SEASON_URL
     #There seems to be a second UTL giving same data?
@@ -157,7 +158,7 @@ def getCurrentSeasonEvents(raw=False, func=_parseCurrentSeasonEvents):
 
 
 # + tags=["active-ipynb"]
-# current_season_events, eventdays, eventchannel = getCurrentSeasonEvents()
+# current_season_events, eventdays, eventchannel = getActiveSeasonEvents()
 # display(current_season_events.head())
 # display(eventdays.head())
 # display(eventchannel.head())

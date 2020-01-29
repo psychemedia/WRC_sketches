@@ -50,7 +50,53 @@ class Championship(SeasonBase):
 
 
 # + tags=["active-ipynb"]
-# SeasonBase(autoseed=True).season_external_id
+# SeasonBase(autoseed=True)#.season_external_id
+# -
+
+# TO DO - need a more gernal season events class?
+# If, that is, we can we look up arbtrary season events...
+class WRCActiveSeasonEvents:
+    """Class for Season events."""
+    def __init__(self ):
+        self.current_season_events, self.eventdays, self.eventchannel = getActiveSeasonEvents()
+
+
+
+WRCActiveSeasonEvents().current_season_events.head()
+
+
+# +
+#This class needs renaming...
+#What does it actually represent? An event? A live event? A set of events?
+class WRC2020(WRCEvent):
+    """Class for WRC data scrape using 2020 API."""
+
+    def __init__(self, sdbRallyId=None, live=False):
+        WRCEvent.__init__(self, sdbRallyId, live)
+        
+        self.live = live
+        self.activeseasonevents = None
+        
+    
+    def fetchActiveSeasonEvents(self):
+        """Fetch current season events."""
+        self.activeseasonevents = WRCActiveSeasonEvents()
+        
+    def getActiveSeasonEvents(self):
+        """Get Current  = season events."""
+        _current_season_events_attrs = ['activeseasonevents', 'current_season_events',
+                                         'eventdays', 'eventchannel' ]
+        if not any([hasattr(self,a) for a in _current_season_sevents_attrs]) or not self.activeseasonevents:
+            _cse = self.activeseasonevents = WRCActiveSeasonEvents()
+        else:
+            _cse = self.activeseasonevents
+        return (_cse.current_season_events, _cse.eventdays, _cse.eventchannel)
+
+
+    
+    
+    
+    
 
 # +
 # TO DO - define a class for each table
@@ -504,54 +550,11 @@ class WRCEvent(WRCRally_sdb):
 # + tags=["active-ipynb"]
 # zz = WRCEvent(autoseed=True)
 # zz.getPenalties()
-# -
-
-# TO DO - need a more gernal season events class?
-# If, that is, we can we look up arbtrary season events...
-class WRCCurrentSeasonEvents:
-    """Class for Season events."""
-    def __init__(self ):
-        self.current_season_events, self.eventdays, self.eventchannel = getCurrentSeasonEvents()
-
-
-
-# +
-#This class needs renaming...
-#What does it actually represent? An event? A live event? A set of events?
-class WRC2020(WRCEvent):
-    """Class for WRC data scrape using 2020 API."""
-
-    def __init__(self, sdbRallyId=None, live=False):
-        WRCEvent.__init__(self, sdbRallyId, live)
-        
-        self.live = live
-        self.currentseasonevents = None
-        
-    
-    def fetchCurrentSeasonEvents(self):
-        """Fetch current season events."""
-        self.currentseasonevents = WRCCurrentSeasonEvents()
-        
-    def getCurrentSeasonEvents(self):
-        """Get Current  = season events."""
-        _current_season_sevents_attrs = ['currentseasonevents', 'current_season_events',
-                                         'eventdays', 'eventchannel' ]
-        if not any([hasattr(self,a) for a in _current_season_sevents_attrs]) or not self.currentseasonevents:
-            _cse = self.currentseasonevents = WRCCurrentSeasonEvents()
-        else:
-            _cse = self.currentseasonevents
-        return (_cse.current_season_events, _cse.eventdays, _cse.eventchannel)
-
-
-    
-    
-    
-    
 
 # + tags=["active-ipynb"]
 # wrc=WRC2020()
-# wrc.getCurrentSeasonEvents()
-# wrc.currentseasonevents.current_season_events
+# wrc.getActiveSeasonEvents()
+# wrc.activeseasonevents.current_season_events
 # -
 
 wrc.getStartlist()
@@ -574,7 +577,7 @@ wrc.getStartlist()
 # #championship = getChampionshipStandingsLive()
 
 # + tags=["active-ipynb"]
-# current_season_events, eventdays, eventchannel = wrc.getCurrentSeasonEvents()
+# current_season_events, eventdays, eventchannel = wrc.getActiveSeasonEvents()
 
 # + tags=["active-ipynb"]
 # event, days, channels = wrc.getActiveRally()
