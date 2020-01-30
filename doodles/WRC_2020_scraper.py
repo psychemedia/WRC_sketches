@@ -30,7 +30,7 @@ from pandas.io.json import json_normalize
 import requests_cache
 requests_cache.install_cache('wrc_cache',
                              backend='sqlite',
-                             expire_after=300)
+                             expire_after=30000)
 
 
 # + tags=["active-ipynb"]

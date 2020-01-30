@@ -31,6 +31,10 @@
 from WRC_2020_scraper import *
 from WRC_2020_scraper import getSeasonCategories
 
+import pandas as pd
+from sqlite_utils import Database
+import uuid
+
 
 # +
 
@@ -54,6 +58,20 @@ def _jsInt(val):
 #        paths.append('.'.join(parts[:-i]))
 #paths.reverse()
 
+def _isnull(obj):
+    """Check an object is null."""
+    if isinstance(obj, pd.DataFrame):
+        return obj.empty
+    elif isinstance(obj, str) and obj.lower()=='null':
+        return True
+    elif obj:
+        return False
+    return True
+
+def _notnull(obj):
+    """Check an object is not null."""
+    return not _isnull(obj)
+
 def _checkattr(obj,attr):
     """Check an object exists and is set to a non-null value."""
     
@@ -61,13 +79,17 @@ def _checkattr(obj,attr):
     
     if hasattr(obj,attr):
         objattr = getattr(obj, attr)
-        if isinstance(objattr, pd.DataFrame):
-            return not objattr.empty
-        elif objattr:
-            return True
+        return _notnull(objattr)
         
     return False
 
+
+# + tags=["active-ipynb"]
+# assert _isnull('')
+# assert _isnull(None)
+# assert _isnull({})
+# assert _isnull([])
+# assert _isnull(pd.DataFrame())
 
 # +
 # TO DO - define a class for each table
@@ -123,10 +145,75 @@ class IPythonWarner:
 # upserter may require col renaming or additional cols to df before upsert
 # -
 
-class WRCBase(IPythonWarner):
+class SQLiteDB:
+    """Simple sqlite utils."""
+    def __init__(self, dbname=None, nowarn=True):
+        if dbname:
+            self.db_connect(dbname)
+    
+    def db_connect(self, dbname=None):
+        """Connect to a db.
+           Give the file a randomly generated name if one not provided.
+        """
+        dbname = dbname or f'{uuid.uuid4().hex}.db'
+        if not hasattr(self, dbname) or (self.dbname != dbname):
+            self.dbname = dbname
+            self.db = Database(dbname)
+
+    def upsert(self, table, data=None, pk=None):
+        """Simple upsert.
+           If we forget to create a database, this will create one.
+        """
+        print('upserting')
+        _upserts = []
+        
+        if isinstance(table, str):
+            if _notnull(data) and pk:
+                #One table
+                _upserts.append(table, data, pk)
+            elif hasattr(self, table) and _isnull(data) and pk:
+                #One table, data from self attribute
+                data = getattr(self, table)
+                _upserts.append(table, data, pk)
+        elif isinstance(table,list) and _isnull(data):
+            #several tables from self  attributes: [(table, pk), ..]
+            for _t in table:
+                if isinstance(_t, tuple) and len(_t)==2:
+                    (_table, _pk) = _t
+                if isinstance(_table, str) and hasattr(self, table):
+                    _data = getattr(self, _table)
+                    _upserts.append(_table, _data, _pk)
+        
+        # TO DO - if the pk is none, and data is a df, use the df index?
+
+        if not hasattr(self, 'dbname') and not hasattr(self, 'db'):
+            self.db_connect()
+        
+        if isinstance(data, pd.DataFrame):
+            self.db[table].upsert_all(data.to_dict(orient='records'), pk=pk)
+        elif isinstance(data, dict):
+            self.db[table].upsert_all(data, pk=pk)
+        elif isinstance(data, list):
+            # pass a three tuple as each list item: (table, data, pk)
+            for _data in data:
+                if len(_data)==3:
+                    self.db[_data[0]].upsert_all(_data[1], pk=_data[2])
+    
+    def dbfy(self, table, data=None, pk=None):
+        """If we have a database, use it."""
+        if hasattr(self, 'db'):
+            self.upsert(data, pk, table)
+    
+    def q(self, query):
+        """Simple SQL query on db, returning a dataframe."""
+        return pd.read_sql(q, self.db.conn)
+
+
+class WRCBase(IPythonWarner, SQLiteDB):
     "Base class for all WRC stuff."
-    def __init__(self, nowarn=True):
+    def __init__(self, nowarn=True, dbname=None):
         IPythonWarner.__init__(self, nowarn=nowarn)
+        SQLiteDB.__init__(self, dbname=dbname)
         
     def _null():
         pass
@@ -135,8 +222,8 @@ class WRCBase(IPythonWarner):
 # + run_control={"marked": false}
 class WRCSeasonBase(WRCBase):
     """Base class for things related to with seasons."""
-    def __init__(self, season_external_id=None, autoseed=False, nowarn=True):
-        WRCBase.__init__(self, nowarn=nowarn)
+    def __init__(self, season_external_id=None, autoseed=False, nowarn=True, dbname=None):
+        WRCBase.__init__(self, nowarn=nowarn, dbname=dbname)
         
         self.season_external_id = _jsInt(season_external_id)
         if not self.season_external_id and autoseed:
@@ -150,13 +237,17 @@ class WRCSeasonBase(WRCBase):
             #It's also available from current_season_events
             event, days, channels = getActiveRally()
             self.event, self.days, self.channels = event, days, channels
+            self.dbfy(['event', 'days', 'channels'])
+            
             #The returned np.int64 is not JSON serialisable
             self.season_external_id = _jsInt(event.loc[0,'season.externalId'])
 
 
 
 # + tags=["active-ipynb"]
-# WRCSeasonBase(autoseed=True)#.season_external_id
+# zz= WRCSeasonBase(autoseed=True)#.season_external_id
+# #zz.db_connect()
+# #zz._check_season_external_id()
 # -
 
 class WRCSeasonCategories(WRCSeasonBase):
