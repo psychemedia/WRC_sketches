@@ -94,10 +94,17 @@ def _jsInt(val):
             val = int(val)
         except:
             return None
+    else:
+        val = None
 
-    return None
+    return val
 
 
+# + tags=["active-ipynb"]
+# assert _jsInt(1)==1
+# assert _jsInt('a') is None
+# assert _jsInt('') is None
+# assert _jsInt(None) is None
 # -
 
 def listify(item):
