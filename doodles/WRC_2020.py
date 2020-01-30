@@ -50,6 +50,9 @@ def _jsInt(val):
     return val
 
 
+# + tags=["active-ipynb"]
+# TESTDB='testdbfy.db'
+
 # +
 #paths=[]
 #parts=attr.split('.')
@@ -90,6 +93,17 @@ def _checkattr(obj,attr):
 # assert _isnull({})
 # assert _isnull([])
 # assert _isnull(pd.DataFrame())
+# -
+
+def listify(item):
+    return item if isinstance(item,list) else [item] 
+
+
+# + tags=["active-ipynb"]
+# assert listify(1)==[1]
+# assert listify('1')==['1']
+# assert listify([1,2])==[1, 2]
+# assert listify({'a':1})==[{'a': 1}]
 
 # +
 # TO DO - define a class for each table
@@ -156,9 +170,13 @@ class SQLiteDB:
            Give the file a randomly generated name if one not provided.
         """
         dbname = dbname or f'{uuid.uuid4().hex}.db'
-        if not hasattr(self, dbname) or (self.dbname != dbname):
+        if not hasattr(self, dbname) or (dbname and self.dbname != dbname):
             self.dbname = dbname
             self.db = Database(dbname)
+        else:
+            self.dbname = dbname
+            self.db = Database(dbname)
+        print()
 
     def upsert(self, table, data=None, pk=None):
         """Simple upsert.
@@ -168,45 +186,57 @@ class SQLiteDB:
         _upserts = []
         
         if isinstance(table, str):
-            if _notnull(data) and pk:
+            if _notnull(data) and pk is not None:
                 #One table
-                _upserts.append(table, data, pk)
-            elif hasattr(self, table) and _isnull(data) and pk:
+                _upserts.append((table, data, pk))
+            #Check data is None. It may be {}, which would be data...
+            elif hasattr(self, table) and data is None and pk is not None:
                 #One table, data from self attribute
                 data = getattr(self, table)
-                _upserts.append(table, data, pk)
+                _upserts.append((table, data, pk))
+        elif isinstance(table,tuple) and len(table)==2 and _isnull(data):
+            (_table, _pk) = table
+            if isinstance(_table, str) and hasattr(self, _table) and _pk is not None:
+                _data = getattr(self, _table)
+                _upserts.append((_table, _data, _pk))
         elif isinstance(table,list) and _isnull(data):
             #several tables from self  attributes: [(table, pk), ..]
             for _t in table:
                 if isinstance(_t, tuple) and len(_t)==2:
                     (_table, _pk) = _t
-                if isinstance(_table, str) and hasattr(self, table):
-                    _data = getattr(self, _table)
-                    _upserts.append(_table, _data, _pk)
+                    if isinstance(_table, str) and hasattr(self, _table) and _pk is not None:
+                        _data = getattr(self, _table)
+                        _upserts.append((_table, _data, _pk))
         
         # TO DO - if the pk is none, and data is a df, use the df index?
 
         if not hasattr(self, 'dbname') and not hasattr(self, 'db'):
             self.db_connect()
-        
-        if isinstance(data, pd.DataFrame):
-            self.db[table].upsert_all(data.to_dict(orient='records'), pk=pk)
-        elif isinstance(data, dict):
-            self.db[table].upsert_all(data, pk=pk)
-        elif isinstance(data, list):
-            # pass a three tuple as each list item: (table, data, pk)
-            for _data in data:
-                if len(_data)==3:
-                    self.db[_data[0]].upsert_all(_data[1], pk=_data[2])
+            
+        #The alter=True allows us the table to be modified if we have extra columns
+        for (_table, _data, _pk) in _upserts:
+            if isinstance(_data, pd.DataFrame) and _notnull(_data) and _pk is not None:
+                self.db[_table].upsert_all(_data.to_dict(orient='records'), pk=_pk, alter=True)
+            elif isinstance(_data, dict) and _data and _pk is not None:
+                print(_data)
+                self.db[_table].upsert_all(_data, pk=_pk, alter=True)
+        # TO DO  - what if we have a dict of dicts like for the stagesplits etc?
     
     def dbfy(self, table, data=None, pk=None):
         """If we have a database, use it."""
         if hasattr(self, 'db'):
-            self.upsert(data, pk, table)
+            self.upsert(table, data, pk)
     
     def q(self, query):
         """Simple SQL query on db, returning a dataframe."""
-        return pd.read_sql(q, self.db.conn)
+        if hasattr(self, 'db'):
+            return pd.read_sql(query, self.db.conn)
+        
+                
+    def dbtables(self):
+        """Show tables in db."""
+        query = "SELECT * FROM sqlite_master where type='table';"
+        return self.q(query)
 
 
 class WRCBase(IPythonWarner, SQLiteDB):
@@ -233,26 +263,29 @@ class WRCSeasonBase(WRCBase):
         """Check that season_external_id exists and if not, get one."""
         self.season_external_id =  _jsInt(season_external_id) or self.season_external_id
         if not _checkattr(self,'season_external_id'):
-            #Get current one from active rally
-            #It's also available from current_season_events
-            event, days, channels = getActiveRally()
-            self.event, self.days, self.channels = event, days, channels
-            self.dbfy(['event', 'days', 'channels'])
+            self.fetchSeasonExternalId(season_external_id)
             
-            #The returned np.int64 is not JSON serialisable
-            self.season_external_id = _jsInt(event.loc[0,'season.externalId'])
+    def fetchSeasonExternalId(self, season_external_id=None):
+        """Fetch a season external ID howsoever we can."""
+        #Get current one from active rally
+        #It's also available from current_season_events
+        event, days, channels = getActiveRally()
+        self.event, self.days, self.channels = event, days, channels
 
+        #The returned np.int64 is not JSON serialisable
+        self.season_external_id = _jsInt(event.loc[0,'season.externalId'])
+        #Upsert the data if there's a db connection
+        self.dbfy([('event','id'), ('days','id'), ('channels','id')])
 
 
 # + tags=["active-ipynb"]
 # zz= WRCSeasonBase(autoseed=True)#.season_external_id
-# #zz.db_connect()
-# #zz._check_season_external_id()
+# zz.db_connect()
 # -
 
 class WRCSeasonCategories(WRCSeasonBase):
-    def __init__(self, autoseed=False, nowarn=True):
-        WRCSeasonBase.__init__(self, nowarn=nowarn)
+    def __init__(self, autoseed=False, nowarn=True, dbname=None):
+        WRCSeasonBase.__init__(self, nowarn=nowarn, dbname=dbname)
         
         self.season_categories = None
         self.championship_codes = None
@@ -263,20 +296,22 @@ class WRCSeasonCategories(WRCSeasonBase):
     def fetchSeasonCategories(self):
         self.season_categories = getSeasonCategories()
         self.championship_codes = getSeasonChampionshipCodes()
+        self.dbfy([('season_categories','id'), ('championship_codes','id')])
 
 
 # + tags=["active-ipynb"]
-# zz = WRCSeasonCategories()
+# zz = WRCSeasonCategories(dbname=TESTDB)
 # zz.fetchSeasonCategories()
 # zz.championship_codes
+# zz.dbtables()
 # -
 
 class WRCChampionship(WRCSeasonCategories):       
     """Class for championship."""
     def __init__(self, category='WRC', typ='drivers',
                  season_external_id = None,
-                 autoseed=False, nowarn=True ):
-        WRCSeasonCategories.__init__(self, autoseed=False, nowarn=True)
+                 autoseed=False, nowarn=True, dbname=None):
+        WRCSeasonCategories.__init__(self, autoseed=False, nowarn=True, dbname=dbname)
 
         self.championships = {}
         
@@ -296,19 +331,25 @@ class WRCChampionship(WRCSeasonCategories):
         (_cct['championship'], _cct['championshipRounds'], \
          _cct['championshipEntries']) = getChampionship(category=category,
                                                         typ=typ, season_external_id=season_external_id)
+        
+        self.dbfy('championship', _cct['championship'], 'championshipId')
+        self.dbfy('championshipRounds', _cct['championshipRounds'], ['eventId','championshipId'])
+        self.dbfy('championshipEntries', _cct['championshipEntries'],
+                  ['championshipEntryId','championshipId','personId'])
 
 
 # + tags=["active-ipynb"]
-# zz = WRCChampionship()
+# zz = WRCChampionship(dbname=TESTDB)
 # zz.fetchChampionship()
+# zz.dbtables()
 # -
 
 class WRCChampionshipStandings(WRCSeasonCategories):       
     """Standings for a championship."""
     def __init__(self, category='WRC', typ='drivers',
                  season_external_id = None,
-                 autoseed=False, nowarn=True ):
-        WRCSeasonCategories.__init__(self, autoseed=False, nowarn=True)
+                 autoseed=False, nowarn=True, dbname=None):
+        WRCSeasonCategories.__init__(self, autoseed=False, nowarn=True, dbname=dbname)
         
         self.championship_standings = {}
         
@@ -329,40 +370,54 @@ class WRCChampionshipStandings(WRCSeasonCategories):
         (_cct['championship_standings'], \
          _cct['round_results']) = getChampionshipStandings(category=category,
                                                            typ=typ, season_external_id=season_external_id)
+        
+        self.dbfy('championship_standings', _cct['championship_standings'], ['championshipId','championshipEntryId'])
+        self.dbfy('round_results', _cct['round_results'], ['championshipEntryId','championshipId','eventId'])
+
 
 # + tags=["active-ipynb"]
-# zz = WRCChampionshipStandings()
+# zz = WRCChampionshipStandings(dbname=TESTDB)
 # zz.fetchChampionshipStandings('JWRC')
 # zz.fetchChampionshipStandings('WRC')
 # zz.championship_standings
+# zz.dbtables()
 # -
 
 
 
 # TO DO - need a more general season events class?
 # If, that is, we can we look up arbitrary season events...
-class WRCActiveSeasonEvents:
+class WRCActiveSeasonEvents(SQLiteDB):
     """Class for Season events."""
-    def __init__(self, autoseed=False):
+    def __init__(self, autoseed=False, dbname=None):
+        SQLiteDB.__init__(self, dbname=dbname)
         
         if autoseed:
             self.fetchActiveSeasonEvents()
             
     def fetchActiveSeasonEvents(self):
         self.current_season_events, self.eventdays, self.eventchannel = getActiveSeasonEvents()
-
+        self.dbfy([('current_season_events','id'), ('eventdays','id'),
+                  ('eventchannel','id')])
 
 
 # + tags=["active-ipynb"]
-# WRCActiveSeasonEvents(autoseed=True).current_season_events.head()
+# zz=WRCActiveSeasonEvents(autoseed=True, dbname=TESTDB)
+# zz.current_season_events.head()
+# zz.fetchActiveSeasonEvents()
+# zz.dbtables()
 # -
+
+zz.dbfy([('current_season_events','id')])
+zz.dbtables()
+
 
 class WRCRally_sdb(WRCBase):
     """Base class for things with an sdbRallyId.
        Can also help find an active sdbRallyId"""
     def __init__(self, sdbRallyId=None,
-                 autoseed=False, nowarn=True,):
-        WRCBase.__init__(self, nowarn=nowarn)
+                 autoseed=False, nowarn=True, dbname=None):
+        WRCBase.__init__(self, nowarn=nowarn, dbname=dbname)
         
         self.warner(not sdbRallyId, "sdbRallyId should really be set...")
         
@@ -379,6 +434,7 @@ class WRCRally_sdb(WRCBase):
             self.activerally = WRCActiveRally()
             self.sdbRallyId = self.activerally.sdbRallyId
             self.name = self.activerally.name
+
         return self.sdbRallyId
 
 
@@ -388,16 +444,16 @@ class WRCRally_sdb(WRCBase):
 
 class WRCLive(WRCBase):
     """Base class for live rallies."""
-    def __init__(self, live=False):
-        WRCBase.__init__(self)
+    def __init__(self, live=False, dbname=None):
+        WRCBase.__init__(self, dbname=dbname)
         
         self.live = live
 
 
 class WRCActiveRally(WRCRally_sdb, WRCLive):
     """Class for the active rally."""
-    def __init__(self, live=False ):
-        WRCRally_sdb.__init__(self, nowarn=True)
+    def __init__(self, live=False, dbname=False ):
+        WRCRally_sdb.__init__(self, nowarn=True, dbname=dbname)
         WRCLive.__init__(self, live=live)
 
         self.fetchData()
@@ -406,6 +462,8 @@ class WRCActiveRally(WRCRally_sdb, WRCLive):
         event, days, channels = getActiveRally()
         self.event, self.days, self.channels = event, days, channels
 
+        self.dbfy([('event','id'), ('days','id'), ('channels','id')])
+        
         #np.int64 is not JSON serialisable
         self.sdbRallyId = int(event.loc[0,'id'])
 
@@ -413,7 +471,7 @@ class WRCActiveRally(WRCRally_sdb, WRCLive):
 
 
 # + tags=["active-ipynb"]
-# WRCActiveRally().sdbRallyId
+# WRCActiveRally(dbname=TESTDB).sdbRallyId
 
 # + tags=["active-ipynb"]
 # zz = WRCRally_sdb(autoseed=True)
@@ -424,9 +482,9 @@ class WRCActiveRally(WRCRally_sdb, WRCLive):
 
 class WRCRetirements(WRCRally_sdb):
     """Callable class for retirements"""
-    def __init__(self, sdbRallyId=None, live=False, autoseed=False):
+    def __init__(self, sdbRallyId=None, live=False, autoseed=False, dbname=None):
         """Initialise retirements class."""
-        WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed)
+        WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed, dbname=dbname)
             
         self.retirements=None
         
@@ -437,21 +495,24 @@ class WRCRetirements(WRCRally_sdb):
         """Fetch the data from WRC API."""
         self._checkRallyId(sdbRallyId)
         self.retirements = getRetirements(self.sdbRallyId)
+        
+        #Upsert the data if there's a db connection
+        self.dbfy([('retirements','retirementId')])
     
     def __call__(self):
         return self.retirements
 
 
 # + tags=["active-ipynb"]
-# zz=WRCRetirements(autoseed=True)
+# zz=WRCRetirements(autoseed=True, dbname=TESTDB)
 # zz.retirements.head(3)
 # -
 
 class WRCPenalties(WRCRally_sdb):
     """Callable class for penalties."""
-    def __init__(self, sdbRallyId=None, live=False, autoseed=False):
+    def __init__(self, sdbRallyId=None, live=False, autoseed=False, dbname=None):
         """Initialise penalties class."""
-        WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed)
+        WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed, dbname=dbname)
             
         self.penalties=None
         
@@ -463,6 +524,9 @@ class WRCPenalties(WRCRally_sdb):
         """Fetch the data from WRC API."""
         self._checkRallyId(sdbRallyId)
         self.penalties = getPenalties(self.sdbRallyId)
+        
+        #Upsert the data if there's a db connection
+        self.dbfy([('penalties','penaltyId')])
     
     def __call__(self):
         return self.penalties
@@ -475,9 +539,9 @@ class WRCPenalties(WRCRally_sdb):
 
 class WRCStagewinners(WRCRally_sdb):
     """Callable class for penalties."""
-    def __init__(self, sdbRallyId=None, live=False, autoseed=False):
+    def __init__(self, sdbRallyId=None, live=False, autoseed=False, dbname=None):
         """Initialise penalties class."""
-        WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed)
+        WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed, dbname=dbname)
             
         self.stagewinners=None
         
@@ -489,23 +553,25 @@ class WRCStagewinners(WRCRally_sdb):
         """Fetch the data from WRC API."""
         self._checkRallyId(sdbRallyId)
         self.stagewinners = getStagewinners(self.sdbRallyId)
+        
+        self.dbfy(('stagewinners',['stageId', 'entryId']))
+    
     
     def __call__(self):
         return self.stagewinners
 
+
 # + tags=["active-ipynb"]
-# zz=WRCStagewinners()
+# zz=WRCStagewinners(dbname=TESTDB)
 # zz.fetchStagewinners()
 # zz.stagewinners.head()
 # -
 
-
-
 class WRCItinerary(WRCRally_sdb, WRCLive):
     """Class for WRC2020 Itinerary."""
-    def __init__(self, sdbRallyId=None, live=False, autoseed=False):
+    def __init__(self, sdbRallyId=None, live=False, autoseed=False, dbname=None):
         """Initialise itinerary class."""
-        WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed)
+        WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed, dbname=dbname)
         WRCLive.__init__(self, live=live)
         
         self.itinerary=None
@@ -535,10 +601,62 @@ class WRCItinerary(WRCRally_sdb, WRCLive):
         
         _ccols=['code']+(list(set(self.controls.columns) - set(self.stages.columns)))
         self.richstages=self.stages.merge(self.controls[_ccols], on='code')
-            
+        
+        self.dbfy([('itinerary',['itineraryId']),
+                   ('legs',['itineraryLegId']),
+                   ('sections',['itinerarySectionId']),
+                   ('controls',['controlId']),
+                   ('stages',['stageId']),
+                   ('richstages',['stageId'])])
+        
+    def getStageIdFromCode(self, code=None):
+        """Return a stageID from a single codes."""
+        
+        if code and isinstance(code, str) and _checkattr(self,'stages'):
+            _df = self.stages[self.stages['code']==code][['rallyid', 'stageId']]
+            return tuple(_df.iloc[0])
+        elif code and isinstance(code,list):
+            # TO DO - this might be dangerous if we are expencting a single tuple response
+            getStageIdsFromCode(code, response='tuples')
+    
+    def getStageIdsFromCode(self, code=None, response='dict'):
+        """Return a stageID from one or more codes."""
+        if code and _checkattr(self,'stages'):
+            _df = self.stages[self.stages['code'].isin(listify(code))][['code', 'rallyid', 'stageId']]
+            if response=='df':
+                return _df
+            elif response=='tuples':
+                return list(_df.itertuples(index=False, name=None))
+            return _df.set_index('code').to_dict(orient='index')
+        
+    def getStageIds(self, typ='all', response='dict'):
+        """Return stageIDs by stage status."""
+        if _checkattr(self,'stages'):
+            if typ=='all':
+                _df = self.stages[['code', 'rallyid', 'stageId']]
+            else:
+                if typ=='completed':
+                    _statuses = ['Completed', 'Interrupted']
+                elif typ=='onlycompleted':
+                    _statuses = ['Completed']
+                elif typ=='interrupted':
+                    _statuses = ['Interrupted']
+                _df = self.stages[self.stages['status'].isin(_statuses)][['code', 'rallyid', 'stageId']]
+     
+            if response=='df':
+                return _df
+            elif response=='tuples':
+                return list(_df.itertuples(index=False, name=None))
+            return _df.set_index('code').to_dict(orient='index')
+
 
 # + tags=["active-ipynb"]
-# print(WRCItinerary(autoseed=True).sdbRallyId)
+# sdbRallyId = 100
+# zz=WRCItinerary(sdbRallyId, autoseed=True)
+# zz.sdbRallyId
+
+# + tags=["active-ipynb"]
+# zz.getStageIds('interrupted')
 
 # + tags=["active-ipynb"]
 # WRCItinerary(sdbRallyId=100).legs
@@ -546,8 +664,9 @@ class WRCItinerary(WRCRally_sdb, WRCLive):
 
 class WRCStartlist(WRCLive):
     """Class for WRC2020 Startlist table."""
-    def __init__(self, startListId=None, live=False, autoseed=True, nowarn=False):
-        WRCLive.__init__(self, live=live)
+    def __init__(self, startListId=None, live=False, autoseed=True,
+                 nowarn=False, dbname=None):
+        WRCLive.__init__(self, live=live, dbname=dbname)
         
         self.startListId = _jsInt(startListId)
         
@@ -575,6 +694,8 @@ class WRCStartlist(WRCLive):
         self._checkStartListId(startListId)
         startList,startListItems = getStartlist(self.startListId)
         self.startList, self.startListItems = startList,startListItems
+        self.dbfy([('startList',['startListId']),
+                   ('startListItems',['startListItemId'])])
 
 
 # + tags=["active-ipynb"]
@@ -585,8 +706,8 @@ class WRCStartlist(WRCLive):
 
 class WRCCars(WRCRally_sdb):
     """Class for WRC2020 Cars table."""
-    def __init__(self, sdbRallyId=None, live=False, autoseed=False):  
-        WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed)
+    def __init__(self, sdbRallyId=None, live=False, autoseed=False, dbname=None):  
+        WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed, dbname=dbname)
         
         self.cars=None
         self.classes=None
@@ -598,6 +719,8 @@ class WRCCars(WRCRally_sdb):
         self._checkRallyId(sdbRallyId)
         cars, classes = getCars(self.sdbRallyId)
         self.cars, self.classes = cars, classes
+        self.dbfy([('cars',['entryId','eventId']),
+                   ('classes',['entryId'])])
 
 
 # + tags=["active-ipynb"]
@@ -606,8 +729,8 @@ class WRCCars(WRCRally_sdb):
 
 class WRCRally(WRCRally_sdb):
     """Class for WRC2020 Rally table. This gives external ids."""
-    def __init__(self, sdbRallyId=None, autoseed=False):  
-        WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed)
+    def __init__(self, sdbRallyId=None, autoseed=False, dbname=False):  
+        WRCRally_sdb.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed, dbname=dbname)
         
         self.rally=None
         self.eligibilities=None
@@ -620,6 +743,9 @@ class WRCRally(WRCRally_sdb):
         print('fetching')
         self._checkRallyId(sdbRallyId)
         (self.rally, self.eligibilities, self.groups) = getRally(self.sdbRallyId)
+        self.dbfy([('rally',['sdbRallyId']),
+                   ('eligibilities',['sdbRallyId', 'category']),
+                   ('groups',['sdbRallyId', 'groupId'])])
         
     # TO DO - define iterators?
 
@@ -636,8 +762,9 @@ zz.eligibilities
 class WRCRally_stages(WRCItinerary):
     """Class referring to all rally stages."""
     def __init__(self, sdbRallyId=None, live=False,
-                 autoseed=False, nowarn=True,):
-        WRCItinerary.__init__(self, sdbRallyId=None, live=False, autoseed=autoseed)
+                 autoseed=False, nowarn=True, dbname=None):
+        WRCItinerary.__init__(self, sdbRallyId=None, live=False,
+                              autoseed=autoseed, dbname=dbname)
         
         self.sdbRallyId = _jsInt(sdbRallyId)
         
@@ -648,10 +775,15 @@ class WRCRally_stages(WRCItinerary):
         """Return a stages list or lookup list for active rally."""
         #Have we got an sdbRallyId?
         if not hasattr(self, 'sdbRallyId') or not self.sdbRallyId:
-            self.activerally = WRCActiveRally()
-            self.sdbRallyId = self.activerally.sdbRallyId
-            self.name = self.activerally.name
-
+            fetchStages(self, sdbRallyId=None)
+            
+            
+    def fetchStages(self, sdbRallyId=None):
+        """Fetch stages for a specified rally."""
+        self.activerally = WRCActiveRally()
+        self.sdbRallyId = self.activerally.sdbRallyId
+        self.name = self.activerally.name
+        
         self._checkItinerary()
         
     def lastCompletedStage(self):
@@ -660,8 +792,6 @@ class WRCRally_stages(WRCItinerary):
     
     def stagesIterator(sdbRallyId=None):
         pass
-
-
 # -
 
 zz=WRCRally_stages(autoseed=True)
@@ -676,9 +806,9 @@ class WRCRally_stage(WRCRally_stages):
     """Base class for things with a stageId.
        Can also help find a stageId list for a given rally."""
     def __init__(self, sdbRallyId=None, stageId=None, live=False,
-                 autoseed=False, nowarn=True):
+                 autoseed=False, nowarn=True, dbname=None):
         WRCRally_stages.__init__(self, sdbRallyId=sdbRallyId,
-                                 live=live, autoseed=autoseed, nowarn=nowarn)
+                                 live=live, autoseed=autoseed, nowarn=nowarn, dbname=dbname)
         
         if not nowarn:
             if not sdbRallyId:
@@ -727,9 +857,9 @@ class WRCRally_stage(WRCRally_stages):
 class WRCOverall(WRCRally_stage):
     """Class for overall stage table."""
     def __init__(self, sdbRallyId=None, stageId=None, live=False,
-                 autoseed=False, nowarn=True):
+                 autoseed=False, nowarn=True, dbname=None):
         WRCRally_stage.__init__(self, sdbRallyId=sdbRallyId, stageId=stageId,
-                                live=live, autoseed=autoseed, nowarn=nowarn)
+                                live=live, autoseed=autoseed, nowarn=nowarn, dbname=dbname)
         
         self.overall={}
 
@@ -746,7 +876,8 @@ class WRCOverall(WRCRally_stage):
 
         if stageId:
             self.overall[stageId] = getOverall(self.sdbRallyId, stageId)
-    
+            self.dbfy('overall',self.overall[stageId],['stageId', 'entryId'])
+            
     def __call__(self):
         return self.overall
 
@@ -760,9 +891,9 @@ class WRCOverall(WRCRally_stage):
 class WRCStageTimes(WRCRally_stage):
     """Class for stage times table."""
     def __init__(self, sdbRallyId=None, stageId=None, live=False,
-                 autoseed=False, nowarn=True):
+                 autoseed=False, nowarn=True, dbname=None):
         WRCRally_stage.__init__(self, sdbRallyId=sdbRallyId, stageId=stageId,
-                                live=live, autoseed=autoseed, nowarn=nowarn)
+                                live=live, autoseed=autoseed, nowarn=nowarn, dbname=dbname)
                          
         self.stagetimes={}
 
@@ -779,7 +910,8 @@ class WRCStageTimes(WRCRally_stage):
         
         if stageId:
             self.stagetimes[stageId] = getStageTimes(self.sdbRallyId, stageId)
-    
+            self.dbfy('stagetimes',self.stagetimes[stageId],['stageId', 'entryId'])
+            
     def __call__(self):
         return self.stagetimes
 
@@ -792,9 +924,9 @@ class WRCStageTimes(WRCRally_stage):
 
 class WRCSplitTimes(WRCRally_stage):
     """Class for SplitTimes stage table."""
-    def __init__(self, sdbRallyId=None, stageId=None, live=False, autoseed=False):  
+    def __init__(self, sdbRallyId=None, stageId=None, live=False, autoseed=False, dbname=None):  
         WRCRally_stage.__init__(self, sdbRallyId=sdbRallyId, stageId=stageId,
-                                 live=live, autoseed=autoseed)
+                                 live=live, autoseed=autoseed, dbname=dbname)
         
         self.splitPoints = {}
         self.entrySplitPointTimes ={}
@@ -812,6 +944,10 @@ class WRCSplitTimes(WRCRally_stage):
         if stageId:
             (self.splitPoints[stageId], self.entrySplitPointTimes[stageId], \
              self.splitPointTimes[stageId]) = getSplitTimes(self.sdbRallyId, stageId)
+            
+            self.dbfy('splitPoints',self.splitPoints[stageId],['splitPointId','stageId'])
+            self.dbfy('entrySplitPointTimes',self.entrySplitPointTimes[stageId],['stageId', 'entryId'])
+            self.dbfy('splitPointTimes',self.splitPointTimes[stageId],['splitPointTimeId','splitPointId','entryId', 'stageId'])
 
 
 # + tags=["active.ipynb"]
@@ -852,22 +988,23 @@ class WRCEvent(WRCItinerary, WRCCars, WRCPenalties, WRCRetirements, WRCStartlist
                WRCRally, WRCStagewinners, WRCOverall, WRCStageTimes, WRCSplitTimes ):
     """Class for a rally event.
        Can be used to contain all the timing results data from a WRC rally weekend."""
-    def __init__(self, sdbRallyId=None, stageId=None, live=False, autoseed=False, slurp=False):
+    def __init__(self, sdbRallyId=None, stageId=None, live=False,
+                 autoseed=False, slurp=False, dbname=None):
         WRCItinerary.__init__(self, sdbRallyId=sdbRallyId, live=live,
-                             autoseed=autoseed)
+                             autoseed=autoseed, dbname=dbname)
         WRCCars.__init__(self, sdbRallyId=sdbRallyId, live=live,
-                             autoseed=autoseed)
+                             autoseed=autoseed, dbname=dbname)
         WRCPenalties.__init__(self, sdbRallyId=sdbRallyId, live=live,
-                             autoseed=autoseed)
+                             autoseed=autoseed, dbname=dbname)
         WRCRetirements.__init__(self, sdbRallyId=sdbRallyId, live=live,
-                             autoseed=autoseed)
+                             autoseed=autoseed, dbname=dbname)
         WRCStartlist.__init__(self, startListId=None, live=live,
-                             autoseed=autoseed, nowarn=True)
-        WRCRally.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed)
-        WRCStagewinners.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed)
-        WRCOverall.__init__(self, sdbRallyId=sdbRallyId, stageId=stageId, autoseed=autoseed)
-        WRCStageTimes.__init__(self, sdbRallyId=sdbRallyId, stageId=stageId, autoseed=autoseed)
-        WRCSplitTimes.__init__(self, sdbRallyId=sdbRallyId, stageId=stageId, autoseed=autoseed)
+                             autoseed=autoseed, nowarn=True, dbname=dbname)
+        WRCRally.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed, dbname=dbname)
+        WRCStagewinners.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed, dbname=dbname)
+        WRCOverall.__init__(self, sdbRallyId=sdbRallyId, stageId=stageId, autoseed=autoseed, dbname=dbname)
+        WRCStageTimes.__init__(self, sdbRallyId=sdbRallyId, stageId=stageId, autoseed=autoseed, dbname=dbname)
+        WRCSplitTimes.__init__(self, sdbRallyId=sdbRallyId, stageId=stageId, autoseed=autoseed, dbname=dbname)
         
         if slurp:
             self.rallyslurper()
@@ -1012,8 +1149,8 @@ zz = WRC2020().getActiveSeasonEvents()
 # #zz = WRCEvent(slurp=True)
 
 # + tags=["active-ipynb"]
-# zz = WRCEvent(autoseed=True)
-# zz.getPenalties()
+# zz = WRCEvent(autoseed=True, sdbRallyId=100)
+# zz.getPenalties(sdbRallyId=100)
 
 # + tags=["active-ipynb"]
 # wrc=WRC2020()
