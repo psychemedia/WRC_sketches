@@ -51,6 +51,35 @@ def _jsInt(val):
     return val
 
 
+# +
+def _isnull(obj):
+    """Check an object is null."""
+    if isinstance(obj, pd.DataFrame):
+        return obj.empty
+    elif isinstance(obj, str) and obj.lower()=='null':
+        return True
+    elif obj:
+        return False
+    return True
+
+def _notnull(obj):
+    """Check an object is not null."""
+    return not _isnull(obj)
+
+def _checkattr(obj,attr):
+    """Check an object exists and is set to a non-null value."""
+    
+    #TO DO  - support attributes done a path, checking each step in turn
+    
+    if hasattr(obj,attr):
+        objattr = getattr(obj, attr)
+        return _notnull(objattr)
+        
+    return False
+
+
+# -
+
 #Is this URL constant or picked up relative to each rally?
 URL='https://www.wrc.com/ajax.php?contelPageId=176146'
 
