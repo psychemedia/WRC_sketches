@@ -80,18 +80,24 @@ def _getresponse(_url, args, ss={'conn':None}, secondtry=False):
             
     return r
 
-def _get_and_handle_response(_url, args, func, nargs=1, raw=False, renamecols=None, extracols=None):
+def _get_and_handle_response(_url, args, func, nargs=1, raw=False, renamecols=None,
+                             extracols=None, dropcols=None):
     """Make a request to the API and then return a raw string
        or parse the response with a provided parser function."""
    
     def _add_cols(response, extracols):
         """Add extra columns to each dataframe."""
+        if _isnull(response):
+            return
+        
         dupes=set(response.columns).intersection(extracols.keys())
+
         if dupes:
             warnings.warn(f"Trying to add pre-existing cols: {', '.join(dupes)}")
         for k in extracols:
             response[k]=extracols[k]
         
+                          
     r =  _getresponse(_url,args)
     if raw or not callable(func):
         return r.text
@@ -115,14 +121,18 @@ def _get_and_handle_response(_url, args, func, nargs=1, raw=False, renamecols=No
             response.rename(columns=renamecols, inplace=True)
         if extracols:
             _add_cols(response, extracols)
-
+        if dropcols:
+            response.drop(columns=dropcols,inplace=True, errors='ignore')
     else:
         for i in range(nargs):
             if renamecols:
                 _cols = set(response[i].columns).intersection(renamecols.keys())
+                #couldn't we just errors='ignore?
                 response[i].rename(columns={k:renamecols[k] for k in _cols}, inplace=True)
             if extracols:
                 _add_cols(response[i], extracols)
+            if dropcols:
+                response[i].drop(columns=dropcols,inplace=True, errors='ignore')
     
     return response
 # -
@@ -145,7 +155,7 @@ def getActiveRally(_url=None, raw=False, func=_parseActiveRally):
         _url = ACTIVE_RALLY_URL  
     args= {"command":"getActiveRally","context":None}
     
-    return _get_and_handle_response(_url, args, func, nargs=3, raw=raw)
+    return _get_and_handle_response(_url, args, func, nargs=3, raw=raw, dropcols='winner.driverImageFormats')
 
 
 
@@ -184,7 +194,7 @@ def getActiveSeasonEvents(raw=False, func=_parseActiveSeasonEvents):
     #_url='https://www.wrc.com/ajax.php?contelPageId=183400'
     args = {"command":"getActiveSeason","context":None}
 
-    return _get_and_handle_response(_url, args, func, nargs=3, raw=raw)
+    return _get_and_handle_response(_url, args, func, nargs=3, raw=raw)#, dropcols='winner.driverImageFormats')
         
 
 
@@ -194,6 +204,7 @@ def getActiveSeasonEvents(raw=False, func=_parseActiveSeasonEvents):
 # display(eventdays.head())
 # display(eventchannel.head())
 # display(current_season_events.columns)
+# eventchannel.columns
 # -
 
 # ## getItinerary
@@ -202,7 +213,7 @@ def getActiveSeasonEvents(raw=False, func=_parseActiveSeasonEvents):
 #This seems to work with sdbRallyId=None, returning active rally?
 
 def _parseItinerary(r):
-    """Parse itninerary response."""
+    """Parse itinerary response."""
     itinerary = json_normalize(r.json()).drop(columns='itineraryLegs')
     legs = json_normalize(r.json(),'itineraryLegs' )
     if not legs.empty:
@@ -234,8 +245,8 @@ def getItinerary(sdbRallyId=None, raw=False, func=_parseItinerary):
 
 
 # + tags=["active-ipynb"]
-# #sdbRallyId = 100
-# itinerary, legs, sections, controls, stages = getItinerary()
+# sdbRallyId = 100
+# itinerary, legs, sections, controls, stages = getItinerary(sdbRallyId)
 # display(itinerary.head())
 # display(legs.head())
 # display(sections.head())
@@ -283,7 +294,7 @@ def getStartlist(startListId,typ='activeleg', raw=False):
 def _parseCars(r):
     """Parser for raw cars response."""
     cars = json_normalize(r.json()).drop(columns='eventClasses')
-    classes = json_normalize(r.json(), 'eventClasses')
+    classes = json_normalize(r.json(), 'eventClasses', meta='entryId')
     return (cars, classes)
 
 def getCars(sdbRallyId, raw=False, func=_parseCars):
@@ -334,7 +345,7 @@ def getOverall(sdbRallyId, stageId, raw=False, func=_parseOverall):
     args = {"command":"getOverall","context":{"sdbRallyId":_jsInt(sdbRallyId),
                                               "activeStage":{"stageId":_jsInt(stageId)}}}
 
-    return _get_and_handle_response(URL, args, func, nargs=1, raw=raw)
+    return _get_and_handle_response(URL, args, func, nargs=1, raw=raw, extracols={'stageId':stageId})
 
 
 # + tags=["active-ipynb"]
@@ -346,8 +357,8 @@ def getOverall(sdbRallyId, stageId, raw=False, func=_parseOverall):
 def _parseSplitTimes(r):
     """Parser for raw splittimes response."""
     splitPoints = json_normalize(r.json(),'splitPoints')
-    entrySplitPointTimes = json_normalize(r.json(), 'entrySplitPointTimes').drop(columns='splitPointTimes')
-    splitPointTimes = json_normalize(r.json(), ['entrySplitPointTimes','splitPointTimes'])
+    entrySplitPointTimes = json_normalize(r.json(), 'entrySplitPointTimes', meta='stageId').drop(columns='splitPointTimes')
+    splitPointTimes = json_normalize(r.json(), ['entrySplitPointTimes','splitPointTimes'], meta='stageId')
     return (splitPoints, entrySplitPointTimes, splitPointTimes)
 
 def getSplitTimes(sdbRallyId,stageId, raw=False, func=_parseSplitTimes):
@@ -574,11 +585,12 @@ def getChampionshipStandings(category='WRC',typ='drivers', season_external_id=No
                                  },
                        "activeExternalId":_getChampionshipId(category,typ)}}
 
-    return _get_and_handle_response(SEASON_URL, args, func, nargs=2, raw=raw)
+    return _get_and_handle_response(SEASON_URL, args, func, nargs=2, raw=raw, extracols={'category':category,
+                                                                                         'championship':typ})
 
 
 # + tags=["active-ipynb"]
-# championship_standings, round_results = getChampionshipStandings('JWRC')
+# championship_standings, round_results = getChampionshipStandings('WRC')
 # display(championship_standings.head())
 # display(round_results.head())
 # -
