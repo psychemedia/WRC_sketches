@@ -20,6 +20,11 @@
 #
 # TO DO - consider a scraper class with a requests session embedded in it.
 
+# + tags=["active-ipynb"]
+# %load_ext autoreload
+# %autoreload 2
+# -
+
 import requests
 import warnings
 import json
@@ -32,53 +37,13 @@ requests_cache.install_cache('wrc_cache',
                              backend='sqlite',
                              expire_after=30000)
 
-
 # + tags=["active-ipynb"]
 # # TO DO 
 # # There is also an: activeSeasonId":19
 # # IS there something we can get there?
 # -
 
-# TO DO - this should go into a general utils package
-def _jsInt(val):
-    """Ensure we have a JSON serialisable value for an int.
-       The defends against non-JSON-serialisable np.int64."""
-    try:
-        val = int(val)
-    except:
-        val = None
-        
-    return val
-
-
-# +
-def _isnull(obj):
-    """Check an object is null."""
-    if isinstance(obj, pd.DataFrame):
-        return obj.empty
-    elif isinstance(obj, str) and obj.lower()=='null':
-        return True
-    elif obj:
-        return False
-    return True
-
-def _notnull(obj):
-    """Check an object is not null."""
-    return not _isnull(obj)
-
-def _checkattr(obj,attr):
-    """Check an object exists and is set to a non-null value."""
-    
-    #TO DO  - support attributes done a path, checking each step in turn
-    
-    if hasattr(obj,attr):
-        objattr = getattr(obj, attr)
-        return _notnull(objattr)
-        
-    return False
-
-
-# -
+from WRCUtils2020 import _isnull, _notnull, _checkattr, _jsInt, listify
 
 #Is this URL constant or picked up relative to each rally?
 URL='https://www.wrc.com/ajax.php?contelPageId=176146'
