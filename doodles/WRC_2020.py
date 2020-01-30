@@ -116,7 +116,7 @@ class SQLiteDB:
         Give the file a randomly generated name if one not provided.
         """
         dbname = dbname or f'{uuid.uuid4().hex}.db'
-        if not hasattr(self, dbname) or (dbname and self.dbname != dbname):
+        if not _checkattr(self, dbname) or (dbname and self.dbname != dbname):
             self.dbname = dbname
             self.db = Database(dbname)
         else:
@@ -157,7 +157,7 @@ class SQLiteDB:
 
         # TO DO - if the pk is none, and data is a df, use the df index?
 
-        if not hasattr(self, 'dbname') and not hasattr(self, 'db'):
+        if not _checkattr(self, 'dbname') and not _checkattr(self, 'db'):
             self.db_connect()
 
         # The alter=True allows us the table to be modified if we have extra columns
@@ -416,7 +416,7 @@ class WRCRally_sdb(WRCBase):
     def _checkRallyId(self, sdbRallyId=None):
         """Return a rally ID or lookup active one."""
         sdbRallyId = _jsInt(sdbRallyId) or self.sdbRallyId
-        if not hasattr(self, 'sdbRallyId') or not self.sdbRallyId:
+        if not _checkattr(self, 'sdbRallyId'):
             self.activerally = WRCActiveRally()
             self.sdbRallyId = self.activerally.sdbRallyId
             self.name = self.activerally.name
@@ -443,6 +443,7 @@ class WRCActiveRally(WRCRally_sdb, WRCLive):
     """Class for the active rally."""
 
     def __init__(self, live=False, dbname=False):
+        """Active rally class builds on Rallyid and live classes."""
         WRCRally_sdb.__init__(self, nowarn=True, dbname=dbname)
         WRCLive.__init__(self, live=live)
 
@@ -452,7 +453,7 @@ class WRCActiveRally(WRCRally_sdb, WRCLive):
         """Get data for active rally."""
         event, days, channels = getActiveRally()
         self.event, self.days, self.channels = event, days, channels
-
+        
         self.dbfy([('event', 'id'),
                    ('days', 'id'),
                    ('channels', 'id')])
@@ -463,9 +464,13 @@ class WRCActiveRally(WRCRally_sdb, WRCLive):
         self.name = event.loc[0, 'name']
 
 
+zz.event
+
+
 # + tags=["active-ipynb"]
-# WRCActiveRally(dbname=TESTDB).sdbRallyId
-# zz.dbtables()
+# #zz = WRCActiveRally(dbname=TESTDB)#.sdbRallyId
+# #zz.dbtables()
+# zz = WRCActiveRally()
 
 # + tags=["active-ipynb"]
 # zz = WRCRally_sdb(autoseed=True)
@@ -664,18 +669,20 @@ class WRCItinerary(WRCRally_sdb, WRCLive):
 
 # + tags=["active-ipynb"]
 # zz.getStageIds('interrupted')
+# zz.getStageIds()
 
 # + tags=["active-ipynb"]
 # WRCItinerary(sdbRallyId=100).legs
 # -
 
-class WRCStartlist(WRCLive):
+class WRCStartlist(WRCItinerary):
     """Class for WRC2020 Startlist table."""
 
     def __init__(self, startListId=None, live=False, autoseed=True,
                  nowarn=False, dbname=None):
-        """Startlist class, builds on live class."""
-        WRCLive.__init__(self, live=live, dbname=dbname)
+        """Startlist class, builds on itinerary class."""
+        WRCItinerary.__init__(self, live=live, autoseed=autoseed,
+                              dbname=dbname)
 
         self.startListId = _jsInt(startListId)
 
@@ -690,27 +697,25 @@ class WRCStartlist(WRCLive):
 
     def _checkStartListId(self, startListId=None):
         """Return a startlistId or look one up."""
-        self.startListId = startListId or self.startListId
+        self._checkItinerary()
+        self.startListId = _jsInt(startListId or self.startListId)
+
         if not self.startListId:
-            if not _checkattr(self, 'itinerary'):
-                self.itinerary = WRCItinerary(autoseed=True)
-                self.sdbRallyId = self.itinerary.sdbRallyId
-            self.startListId = int(self.itinerary.legs.loc[0, 'startListId'])
-        return self.startListId
+            self.startListId = int(self.legs.loc[0, 'startListId'])
 
     def fetchStartList(self, startListId=None):
         """Get startlist data from API. Add to db if available."""
         self._checkStartListId(startListId)
-        startList, startListItems = getStartlist(self.startListId)
+        (startList, startListItems) = getStartlist(self.startListId)
         self.startList, self.startListItems = startList, startListItems
         self.dbfy([('startList', ['startListId']),
                    ('startListItems', ['startListItemId'])])
 
 
 # + tags=["active-ipynb"]
-# zz = WRCStartlist(autoseed=True, dbname=TESTDB)
-# zz.fetchStartList()
-# zz.dbtables()
+# zz = WRCStartlist()  # (autoseed=True, dbname=TESTDB)
+# # zz.fetchStartList()
+# zz.startListId
 # -
 
 class WRCCars(WRCRally_sdb):
@@ -770,7 +775,8 @@ class WRCRally(WRCRally_sdb):
 
 zz = WRCRally(autoseed=True, dbname=TESTDB)
 display(zz.rally)
-zz.dbtables()
+zz.stageId
+#zz.dbtables()
 
 # +
 # TO DO - have a check stages function to get some data...
@@ -857,9 +863,9 @@ class WRCRallyStage(WRCRallyStages):
         # One method for finding a stage ID - last completed
         if not stageId:
             if 'lastCompleted':
-                stageId = self.lastCompletedStage()
+                stageId = _jsInt(self.lastCompletedStage())
             # What else? Most recent still running, else lastCompleted?
-
+        return stageId
         # sdbRallyId = sdbRallyId or self.sdbRallyId
         # if not hasattr(self, 'sdbRallyId') or not self.sdbRallyId:
         #    self.activerally = WRCActiveRally()
@@ -875,9 +881,7 @@ class WRCRallyStage(WRCRallyStages):
 
 # # TO DO
 #
-# For things built on `WRCRallyStage` class, we need a way of iterating over all stages. Ideally, one way, as a method in `WRCRallyStage`.
-#
-# The `stages` table from `itinerary` is probably best to go with?
+# Build in iterator to grab all stage data. overall, stagetimes and splittimes build on stage class.
 
 class WRCOverall(WRCRallyStage):
     """Class for overall stage table."""
@@ -899,6 +903,7 @@ class WRCOverall(WRCRallyStage):
 
     def fetchOverall(self, sdbRallyId=None, stageId=None):
         """Fetch the data from WRC API."""
+        stageId = _jsInt(stageId)
         self._checkRallyId(sdbRallyId)
         self._checkStages(self.sdbRallyId)
         self._checkStageId(self.sdbRallyId, stageId)
@@ -943,6 +948,7 @@ class WRCStageTimes(WRCRallyStage):
 
     def fetchStageTimes(self, sdbRallyId=None, stageId=None):
         """Fetch the data from WRC API."""
+        stageId = _jsInt(stageId)
         self._checkRallyId(sdbRallyId)
         self._checkStages(self.sdbRallyId)
         self._checkStageId(self.sdbRallyId, stageId)
@@ -987,6 +993,7 @@ class WRCSplitTimes(WRCRallyStage):
 
     def fetchSplitTimes(self, sdbRallyId=None, stageId=None):
         """Get split times data from WRC API. Add to db if available."""
+        stageId = _jsInt(stageId)
         self._checkRallyId(sdbRallyId)
         self._checkStages(self.sdbRallyId)
         self._checkStageId(self.sdbRallyId, stageId)
@@ -1020,145 +1027,167 @@ zz.dbtables()
 
 # + run_control={"marked": false}
 def WRCdatagetter(func):
-    """Decorator to run a passed in function then return a response.
-       Originally included other logic..."""
+    """
+    Run a passed in function then return a response.
+
+    Originally included other logic...
+    """
     def call(self):
+        """Check attributes. If any missing, grab data as required."""
         (attrs, func2) = func(self)
         if not attrs:
             return None
         if isinstance(attrs, str):
-            attrs=[attrs]
-        #Don't call the function if all the attributes that would be set
+            attrs = [attrs]
+        # Don't call the function if all the attributes that would be set
         # by calling it are already set.
-        if not all([_checkattr(self,a) for a in attrs]):
+        if not all([_checkattr(self, a) for a in attrs]):
             func2()
-        if len(attrs)>1:
-            return tuple(getattr(self,a) for a in attrs)
-        return getattr(self,attrs[0])
+        if len(attrs) > 1:
+            return tuple(getattr(self, a) for a in attrs)
+        return getattr(self, attrs[0])
     return call
 
-        
-#This class will contain everything about a single rally
-class WRCEvent(WRCItinerary, WRCCars, WRCPenalties, WRCRetirements, WRCStartlist,
-               WRCRally, WRCStagewinners, WRCOverall, WRCStageTimes, WRCSplitTimes ):
-    """Class for a rally event.
-       Can be used to contain all the timing results data from a WRC rally weekend."""
+
+# This class will contain everything about a single rally
+class WRCEvent(WRCCars, WRCPenalties, WRCRetirements, WRCStartlist,
+               WRCRally, WRCStagewinners, WRCOverall,
+               WRCStageTimes, WRCSplitTimes):
+    """
+    Class for a rally event.
+
+    Can be used to contain all the timing results data
+    from a WRC rally weekend.
+    """
+
     def __init__(self, sdbRallyId=None, stageId=None, live=False,
                  autoseed=False, slurp=False, dbname=None):
-        WRCItinerary.__init__(self, sdbRallyId=sdbRallyId, live=live,
-                             autoseed=autoseed, dbname=dbname)
+        """Build on classes for each page of API/WRC live timing website."""
         WRCCars.__init__(self, sdbRallyId=sdbRallyId, live=live,
-                             autoseed=autoseed, dbname=dbname)
+                         autoseed=autoseed, dbname=dbname)
         WRCPenalties.__init__(self, sdbRallyId=sdbRallyId, live=live,
-                             autoseed=autoseed, dbname=dbname)
+                              autoseed=autoseed, dbname=dbname)
         WRCRetirements.__init__(self, sdbRallyId=sdbRallyId, live=live,
-                             autoseed=autoseed, dbname=dbname)
+                                autoseed=autoseed, dbname=dbname)
         WRCStartlist.__init__(self, startListId=None, live=live,
-                             autoseed=autoseed, nowarn=True, dbname=dbname)
-        WRCRally.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed, dbname=dbname)
-        WRCStagewinners.__init__(self, sdbRallyId=sdbRallyId, autoseed=autoseed, dbname=dbname)
-        WRCOverall.__init__(self, sdbRallyId=sdbRallyId, stageId=stageId, autoseed=autoseed, dbname=dbname)
-        WRCStageTimes.__init__(self, sdbRallyId=sdbRallyId, stageId=stageId, autoseed=autoseed, dbname=dbname)
-        WRCSplitTimes.__init__(self, sdbRallyId=sdbRallyId, stageId=stageId, autoseed=autoseed, dbname=dbname)
-        
+                              autoseed=autoseed, nowarn=True, dbname=dbname)
+        WRCRally.__init__(self, sdbRallyId=sdbRallyId,
+                          autoseed=autoseed, dbname=dbname)
+        WRCStagewinners.__init__(self, sdbRallyId=sdbRallyId,
+                                 autoseed=autoseed, dbname=dbname)
+        WRCOverall.__init__(self, sdbRallyId=sdbRallyId, stageId=stageId,
+                            autoseed=autoseed, dbname=dbname)
+        WRCStageTimes.__init__(self, sdbRallyId=sdbRallyId, stageId=stageId,
+                               autoseed=autoseed, dbname=dbname)
+        WRCSplitTimes.__init__(self, sdbRallyId=sdbRallyId, stageId=stageId,
+                               autoseed=autoseed, dbname=dbname)
+
         if slurp:
             self.rallyslurper()
 
-    
-
     def getRally(self):
         """Get external rally details."""
-        
-        attrs=['rally','eligibilities', 'groups']
-        if not all([_checkattr(self,a) for a in attrs]):
+        attrs = ['rally', 'eligibilities', 'groups']
+        if not all([_checkattr(self, a) for a in attrs]):
             self.fetchRally()
-        return tuple(getattr(self,a) for a in attrs)
-    
+        return tuple(getattr(self, a) for a in attrs)
 
     def getItinerary(self):
-        """Get itinerary.
-           If rally not known, use active rally.
-           Also set a default startListId."""
+        """
+        Get itinerary.
+
+        If rally not known, use active rally.
+        Also set a default startListId.
+        """
         self.fetchItinerary()
-        attrs = ['itinerary', 'legs', 'sections','controls', 'stages']
-        return tuple(getattr(self,a) for a in attrs)
-       
+        attrs = ['itinerary', 'legs', 'sections', 'controls', 'stages']
+        return tuple(getattr(self, a) for a in attrs)
 
     def getStartlist(self, startListId=None):
-        """Get startlist.
-           If no startListId provided, try to find a default."""
+        """
+        Get startlist.
+
+        If no startListId provided, try to find a default.
+        """
         self.fetchStartList()
-        attrs=['startList', 'startListItems']
-        return tuple(getattr(self,a) for a in attrs)
+        attrs = ['startList', 'startListItems']
+        return tuple(getattr(self, a) for a in attrs)
 
     def getPenalties(self):
         """Get penalties."""
         self.fetchPenalties()
         return self.penalties
-    
+
     def getRetirements(self):
         """Get retirements."""
         self.fetchRetirements()
         return self.retirements
 
-    
     def getStagewinners(self):
-        """Get stagewinners"""
+        """Get stagewinners."""
         self.fetchStagewinners()
         return self.stagewinners
-                
-                
+
     def getCars(self):
         """Get cars."""
         self.fetchCars()
-        attrs=['cars', 'classes']
-        return tuple(getattr(self,a) for a in attrs)
+        attrs = ['cars', 'classes']
+        return tuple(getattr(self, a) for a in attrs)
 
-    #TO DO - different decorator
+    # TO DO - different decorator
     def getOverall(self, stageId=None):
         """Get Overall."""
-        attrs = ['overall']
         self._checkRallyId()
         self._checkStages()
-            
+
         self.fetchOverall(self.sdbRallyId, stageId)
-        
+
         return self.overall
-    
-    
+
     def getStageTimes(self, stageId=None):
         """Get StageTimes."""
-        attrs = ['stagetimes']
         self._checkRallyId()
         self._checkStages()
-            
+
         self.fetchStageTimes(self.sdbRallyId, stageId)
         return self.stagetimes
 
     def getSplitTimes(self, stageId=None):
         """Get SplitTimes."""
-        attrs = ['splitPoints','entrySplitPointTimes','splitPointTimes']
         self._checkRallyId()
         self._checkStages()
-        
+
         self.fetchSplitTimes(self.sdbRallyId, stageId)
 
-        return (self.splitPoints, self.entrySplitPointTimes, self.splitPointTimes)
+        return (self.splitPoints, self.entrySplitPointTimes,
+                self.splitPointTimes)
 
-    
     def rallyslurper(self):
         """Grab everything..."""
+        self.getRally()
         self.getItinerary()
-        self.getCars()
         self.getStartlist()
         self.getPenalties()
         self.getRetirements()
-    
+        self.getStagewinners()
+        self.getCars()
+        _stageIds = self.getStageIds()
+        for ss in _stageIds:
+            print(ss, _stageIds[ss]['stageId'])
+            self.getOverall(_stageIds[ss]['stageId'])
+            self.getStageTimes(_stageIds[ss]['stageId'])
+            self.getSplitTimes(_stageIds[ss]['stageId'])
+
 
 # + tags=["active-ipynb"]
-# zz=WRCEvent()
-# zz.getRally()
+# !rm wrc2020bigtest1.db
+# zz = WRCEvent(dbname='wrc2020bigtest1.db')
+#
+# zz.rallyslurper()
 # -
+
+zz.itinerary.legs
+int(zz.itinerary.legs.loc[0, 'startListId'])
 
 zz.getRally()
 
