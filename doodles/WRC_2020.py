@@ -37,6 +37,7 @@ from WRC_2020_scraper import getSeasonCategories
 import pandas as pd
 from sqlite_utils import Database
 import uuid
+import pickle
 
 # + tags=["active-ipynb"]
 # TESTDB = 'testdbfy.db'
@@ -90,6 +91,26 @@ class IPythonWarner:
 
         if not nowarn and cond:
             warnings.warn(msg)
+
+
+
+# -
+
+class Pickler:
+    """Pickle support for class."""
+
+    def __init__(self, nowarn=False):
+        """Initialise pickler."""
+        pass
+
+    def pickle(self, fn=None):
+        """Pickle self."""
+        fn = fn or f'{uuid.uuid4().hex}.pickle'
+        self.db = None
+        with open(fn, 'wb') as f:
+            pickle.dump(self, f)
+            print(f'Pickled to {fn}')
+        self.db_connect(dbname=zz.dbname)
 
 
 
@@ -203,7 +224,7 @@ class SQLiteDB:
         return self.q(query)
 
 
-class WRCBase(IPythonWarner, SQLiteDB):
+class WRCBase(IPythonWarner, SQLiteDB, Pickler):
     """Base class for all WRC stuff."""
 
     def __init__(self, nowarn=True, dbname=None):
@@ -253,6 +274,9 @@ class WRCSeasonBase(WRCBase):
 # zz = WRCSeasonBase(autoseed=True)  # .season_external_id
 # zz.db_connect()
 # -
+
+zz.pickle()
+# !ls *.pickle
 
 class WRCSeasonCategories(WRCSeasonBase):
     """Class describing season categories."""
