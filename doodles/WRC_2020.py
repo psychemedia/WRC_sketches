@@ -118,10 +118,10 @@ class SQLiteDB:
         dbname = dbname or f'{uuid.uuid4().hex}.db'
         if not _checkattr(self, dbname) or (dbname and self.dbname != dbname):
             self.dbname = dbname
-            self.db = Database(dbname)
         else:
             self.dbname = dbname
-            self.db = Database(dbname)
+
+        self.db = Database(self.dbname)
 
     def upsert(self, table, data=None, pk=None):
         """
@@ -162,11 +162,29 @@ class SQLiteDB:
 
         # The alter=True allows us the table to be modified if we have extra columns
         for (_table, _data, _pk) in _upserts:
+            # TO DO - the try is to cope with this issue:
+            # https://github.com/simonw/sqlite-utils/issues/73#issuecomment-571138093
             if isinstance(_data, pd.DataFrame) and _notnull(_data) and _pk is not None:
-                self.db[_table].upsert_all(_data.to_dict(orient='records'),
-                                           pk=_pk, alter=True)
+                try:
+                    self.db[_table].upsert_all(_data.to_dict(orient='records'),
+                                               pk=_pk, alter=True)
+                except:
+                    try:
+                        self.db[_table].insert_all(_data.to_dict(orient='records'),
+                                                   pk=_pk, alter=True, replace=True)
+                    except:
+                        warning(f"Couldn't add data to {_table} with PK {_pk}")
+
             elif isinstance(_data, dict) and _data and _pk is not None:
-                self.db[_table].upsert_all(_data, pk=_pk, alter=True)
+                try:
+                    self.db[_table].upsert_all(_data, pk=_pk, alter=True)
+                except:
+                    try:
+                        self.db[_table].insert_all(_data, pk=_pk,
+                                                   alter=True, replace=True)
+                    except:
+                        warning(f"Couldn't add data to {_table} with PK {_pk}")
+                        
         # TO DO  - what if we have a dict of dicts like for the stagesplits etc?
 
     def dbfy(self, table, data=None, pk=None):
