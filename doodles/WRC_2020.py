@@ -41,6 +41,7 @@ import pickle
 
 # + tags=["active-ipynb"]
 # TESTDB = 'testdbfy.db'
+# !rm $TESTDB
 # -
 
 from WRCUtils2020 import _isnull, _notnull, _checkattr, _jsInt, listify
@@ -282,9 +283,11 @@ class WRCSeasonCategories(WRCSeasonBase):
     """Class describing season categories."""
 
     def __init__(self, autoseed=False, nowarn=True, dbname=None):
-        """Add season categories to base class.
-        
-        Autoseed if required. Update db if available."""
+        """
+        Add season categories to base class.
+
+        Autoseed if required. Update db if available.
+        """
         WRCSeasonBase.__init__(self, nowarn=nowarn, dbname=dbname)
 
         self.season_categories = None
@@ -399,7 +402,7 @@ class WRCChampionshipStandings(WRCChampionship):
 # zz.dbtables()
 # -
 
-
+# TO DO  - in a clea environment, the following fails on first run. But if we run it again, it works.
 
 # +
 # TO DO - need a more general season events class?
@@ -432,7 +435,7 @@ class WRCActiveSeasonEvents(SQLiteDB):
 # zz.dbtables()
 # -
 
-zz.dbfy([('current_season_events','id')])
+zz.dbfy([('current_season_events', 'id')])
 zz.dbtables()
 
 
@@ -445,7 +448,7 @@ class WRCRally_sdb(WRCBase):
 
     def __init__(self, sdbRallyId=None,
                  autoseed=False, nowarn=True, dbname=None):
-        """Class for things that have a rallyId."""
+        """Initialise things that have a rallyId."""
         WRCBase.__init__(self, nowarn=nowarn, dbname=dbname)
 
         self.warner(not sdbRallyId, "sdbRallyId should really be set...")
@@ -475,14 +478,14 @@ class WRCLive(WRCBase):
     """Base class for live rallies."""
 
     def __init__(self, live=False, dbname=None):
-        """Base class for live datasets."""
+        """Initialise class for live datasets."""
         WRCBase.__init__(self, dbname=dbname)
 
         self.live = live
 
 
 class WRCActiveRally(WRCRally_sdb, WRCLive):
-    """Class for the active rally."""
+    """Create class for the active rally."""
 
     def __init__(self, live=False, dbname=False):
         """Active rally class builds on Rallyid and live classes."""
@@ -495,7 +498,7 @@ class WRCActiveRally(WRCRally_sdb, WRCLive):
         """Get data for active rally."""
         event, days, channels = getActiveRally()
         self.event, self.days, self.channels = event, days, channels
-        
+
         self.dbfy([('event', 'id'),
                    ('days', 'id'),
                    ('channels', 'id')])
@@ -506,13 +509,14 @@ class WRCActiveRally(WRCRally_sdb, WRCLive):
         self.name = event.loc[0, 'name']
 
 
+# + tags=["active-ipynb"]
+# # zz = WRCActiveRally(dbname=TESTDB)#.sdbRallyId
+# # zz.dbtables()
+# zz = WRCActiveRally()
+# -
+
 zz.event
 
-
-# + tags=["active-ipynb"]
-# #zz = WRCActiveRally(dbname=TESTDB)#.sdbRallyId
-# #zz.dbtables()
-# zz = WRCActiveRally()
 
 # + tags=["active-ipynb"]
 # zz = WRCRally_sdb(autoseed=True)
@@ -817,8 +821,7 @@ class WRCRally(WRCRally_sdb):
 
 zz = WRCRally(autoseed=True, dbname=TESTDB)
 display(zz.rally)
-zz.stageId
-#zz.dbtables()
+# zz.dbtables()
 
 # +
 # TO DO - have a check stages function to get some data...
@@ -860,8 +863,8 @@ class WRCRallyStages(WRCItinerary):
 
 zz = WRCRallyStages(autoseed=True, dbname=TESTDB)
 zz.richstages.head()  # stages / controls
-#zz._checkStages()[1].head()
-#zz.lastCompletedStage()
+# zz._checkStages()[1].head()
+# zz.lastCompletedStage()
 zz.dbtables()
 
 zz.lastCompletedStage()
@@ -945,19 +948,20 @@ class WRCOverall(WRCRallyStage):
 
     def fetchOverall(self, sdbRallyId=None, stageId=None):
         """Fetch the data from WRC API."""
-        stageId = _jsInt(stageId)
         self._checkRallyId(sdbRallyId)
         self._checkStages(self.sdbRallyId)
-        self._checkStageId(self.sdbRallyId, stageId)
-
+        stageId = self._checkStageId(self.sdbRallyId, stageId)
         if stageId:
             self.overall[stageId] = getOverall(self.sdbRallyId, stageId)
             self.dbfy('overall', self.overall[stageId], ['stageId', 'entryId'])
-
     def __call__(self):
         """Make overall class callable. Returns dataframe."""
         return self.overall
 
+
+zz = WRCOverall(stageId=1528, dbname=TESTDB)
+#zz.fetchOverall()
+#zz.rallyId
 
 # + tags=["active-ipynb"]
 # zz = WRCOverall(stageId=1528, dbname=TESTDB)
@@ -1228,13 +1232,11 @@ class WRCEvent(WRCCars, WRCPenalties, WRCRetirements, WRCStartlist,
 # zz.rallyslurper()
 # -
 
-zz.itinerary.legs
-int(zz.itinerary.legs.loc[0, 'startListId'])
+zz.pickle('wrc-montecarlo.pickle')
 
-zz.getRally()
-
-attrs=['rally','eligibilities', 'groups']
-all([_checkattr(zz,a) for a in attrs])
+zz.db_connect(dbname='wrc2020bigtest1.db')
+zz.legs
+int(zz.legs.loc[0, 'startListId'])
 
 
 # +
