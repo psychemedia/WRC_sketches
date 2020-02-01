@@ -235,19 +235,23 @@ def asLabeledTime(altime=None, label=None, unit=BASEUNIT,
     if isinstance(altime, LabeledTime):
         atime = altime.atime
     elif isinstance(altime, tuple) and len(altime) == 3:
+        # 3-tuple: (index, uid, timedelta)
         atime = altime
         if label is None:
             useuid = True if useuid is not False else useuid
     elif isinstance(altime, tuple) and len(altime) in [2, 4]:
-        # The 2 tuple is of the form ((1, 2, 3), 'x')
         if len(altime) == 2:
+            # The 2 tuple is of the form ((1, 2, 3), 'x')
             atime = altime[0]
         else:
             #The 4 tuple is of the form (1, 2, 3, 'x')
             atime = altime[:-1]
         if not label:
+            # If there is a label provided,
+            #   then it overrides one in the altime tuple
             label = altime[-1]
     else:
+        # Defualt is Nones 3-tuple
         atime = (None, None, None)
         
     if label is not None:
@@ -261,9 +265,17 @@ def asLabeledTime(altime=None, label=None, unit=BASEUNIT,
         label = ''  # Or should we allow None to be returned?
 
     atime = asTime(atime, unit=unit)
+    
+    # Force label typing as string
     label = str(label)
+    
     if singletuple:
+        # Which is to say, a 4-tuple:
+        #  (index, uid, timedelta, label)
         return atime + (label,)
+    
+    # Default is a 2-tuple:
+    #  ((index, uid, timedelta), label)
     return (atime, label)
 
 
