@@ -109,13 +109,14 @@ def _jsInt(val):
 
 def listify(item):
     """Ensure an item is a list."""
-    return item if isinstance(item, list) else [item] 
+    return item if isinstance(item, list) else [item]
 
 # + tags=["active-ipynb"]
+# assert listify(None) == [None]
 # assert listify(1) == [1]
 # assert listify('1') == ['1']
 # assert listify([1, 2]) == [1, 2]
+# assert listify((1, 2)) == [(1, 2)]
 # assert listify({'a': 1}) == [{'a': 1}]
 # -
-
 
