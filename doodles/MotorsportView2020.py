@@ -362,6 +362,8 @@ def asLabeledTimes(atimes=None, labels=None, unit=BASEUNIT,
 # # Cope with multiple items
 # assert (asLabeledTimes([(1, 2, 3), (4, 5, '6')]) == 
 #         [((1, 2, Timedelta(3, 's')), '2'), ((4, 5, Timedelta(6, 's')), '5')])
+# assert (asLabeledTimes([(1, 2, 3), (4, 5, '6')], ['n1', 'n2']) == 
+#         [((1, 2, Timedelta(3, 's')), 'n1'), ((4, 5, Timedelta(6, 's')), 'n2')])
 # -
 
 # ## Classes
@@ -525,9 +527,9 @@ class LabeledTimes(Times):
             # By default, asLabeledTimes returns a 2-tuple
             _ls = asLabeledTimes(atimes=times, labels=labels,
                                          unit=unit, useuid=useuid)
-            lt = [_lt[1] for _lt in _ls]
+            self.labels = [_lt[1] for _lt in _ls]
             self.atimes = [_lt[0] for _lt in _ls]
-            self.ltimes = [_lt for _lt in zip(self.atimes, lt)]
+            self.ltimes = [_lt for _lt in zip(self.atimes, self.labels)]
 
     def __repr__(self):
         """Display LabeledTimes list."""
@@ -535,12 +537,15 @@ class LabeledTimes(Times):
         return f'LabeledTimes: {repr(self.ltimes)}'
 
 
+LabeledTimes([((1, 2, 3)), ((4, 5, 6))], ['name1', 'name2'])
+
 # +
 # Check nulls
 assert LabeledTimes().atimes == []
 assert LabeledTimes().ltimes == []
 #Check one item, two tuple
 assert LabeledTimes((1, 2, 3), 'name').atimes == [(1, 2, Timedelta(3, unit='s'))]
+assert LabeledTimes((1, 2, 3), 'name').labels == ['name']
 assert LabeledTimes((1, 2, 3), 'name').ltimes == [(Time((1, 2, 3)).atime, 'name')]
 assert LabeledTimes((1, 2, 3), 'name').ltimes == [((1, 2, Timedelta(3, unit='s')), 'name')]
 # Check three tuple
@@ -555,6 +560,10 @@ assert LabeledTimes((1, 2, 3, 'name')).ltimes == [(Time((1, 2, 3)).atime, 'name'
 # Check multi-items
 assert (LabeledTimes([((1, 2, 3), 'name'), ((4, 5, 6), 'name2')]).atimes ==
         [(1, 2, Timedelta(3, unit='s')), (4, 5, Timedelta(6, unit='s'))])
+assert (LabeledTimes([((1, 2, 3), 'name'), ((4, 5, 6), 'name2')]).labels ==
+        ['name', 'name2'])
+assert (LabeledTimes([((1, 2, 3)), ((4, 5, 6))],
+                     ['name1', 'name2']).labels == ['name1', 'name2'])
 
 LabeledTimes((1, 2, 3), 'name')
 
