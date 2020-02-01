@@ -525,11 +525,10 @@ class LabeledTimes(Times):
             # By default, asLabeledTimes returns a 2-tuple
             _ls = asLabeledTimes(atimes=times, labels=labels,
                                          unit=unit, useuid=useuid)
-
             lt = [_lt[1] for _lt in _ls]
             self.atimes = [_lt[0] for _lt in _ls]
             self.ltimes = [_lt for _lt in zip(self.atimes, lt)]
-        
+
     def __repr__(self):
         """Display LabeledTimes list."""
         # TO DO need to shorten this if it's too long
@@ -537,11 +536,23 @@ class LabeledTimes(Times):
 
 
 # +
+# Check nulls
 assert LabeledTimes().atimes == []
 assert LabeledTimes().ltimes == []
+#Check one item, two tuple
 assert LabeledTimes((1, 2, 3), 'name').atimes == [(1, 2, Timedelta(3, unit='s'))]
 assert LabeledTimes((1, 2, 3), 'name').ltimes == [(Time((1, 2, 3)).atime, 'name')]
 assert LabeledTimes((1, 2, 3), 'name').ltimes == [((1, 2, Timedelta(3, unit='s')), 'name')]
+# Check three tuple
+assert LabeledTimes((1, 2, 3)).atimes == [(1, 2, Timedelta(3, unit='s'))]
+assert LabeledTimes((1, 2, 3)).ltimes == [((1, 2, Timedelta(3, unit='s')), '2')]
+assert LabeledTimes((1, 2, 3), useuid=False).ltimes == [((1, 2, Timedelta(3, unit='s')), '')]
+# Check 4-tuple
+assert LabeledTimes([(1, 2, 3, 'name')]).atimes == [(1, 2, Timedelta(3, unit='s'))]
+assert LabeledTimes([(1, 2, 3, 'name')]).ltimes == [(Time((1, 2, 3)).atime, 'name')]
+assert LabeledTimes((1, 2, 3, 'name')).atimes == [(Time((1, 2, 3)).atime)]
+assert LabeledTimes((1, 2, 3, 'name')).ltimes == [(Time((1, 2, 3)).atime, 'name')]
+# Check multi-items
 assert (LabeledTimes([((1, 2, 3), 'name'), ((4, 5, 6), 'name2')]).atimes ==
         [(1, 2, Timedelta(3, unit='s')), (4, 5, Timedelta(6, unit='s'))])
 
