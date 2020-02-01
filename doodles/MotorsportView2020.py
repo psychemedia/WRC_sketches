@@ -17,9 +17,13 @@
 #
 # A set of base classes for representing motorsport data.
 
+# +
 from pandas import Timedelta, NaT
 from numpy import nan
 import pandas as pd
+
+from WRCUtils2020 import listify
+# -
 
 # ## Basic Time Utilities
 #
@@ -90,7 +94,7 @@ class Basetime:
 
     def __init__(self, t, unit=BASEUNIT):
         """Basic unit of time."""
-        self.t = Timedelta(t, unit=unit)
+        self.t = asTimedelta(t, unit=unit)
         self.s = self._s(self.t)
         self.ms = self._ms(self.t)
 
@@ -108,8 +112,8 @@ class Basetime:
         return td
 
     def __repr__(self):
-        """Display timedelta."""
-        return repr(self.t)
+        """Display Basetime."""
+        return f'Basetime: {repr(self.t)}'
 
 
 # + tags=["active-ipynb"]
@@ -122,10 +126,15 @@ class Basetime:
 # assert Basetime(2).ms == 2000
 # assert Basetime(2000, unit='ms').s == 2
 # assert Basetime(2000, unit='ms').s == 2.0
+# Basetime(2000, unit='ms')
 # -
 
+# A timing record is minimally a 3-tuple (`(index, uid, timedelta)`) made up from an index value, such as a lap count or stage number, an identifier, such as a car number, and a time given as a timedelta.
+#
+# The `asTime()` function will take a three tuple and attempt to return it in the form `(vartype, vartype, Timedelta)`.
+
 def asTime(atime=None, unit=BASEUNIT):
-    """Generate a valid Time."""
+    """Generate a valid Time tuple."""
     if isinstance(atime, tuple) and len(atime) == 3:
         _atime = atime
     else:
@@ -140,7 +149,13 @@ def asTime(atime=None, unit=BASEUNIT):
     return atime
 
 
+
 # + tags=["active-ipynb"]
+# # Check nulls
+# assert asTime() ==  (None, None, None)
+# assert asTime(()) == (None, None, None)
+# # Check we can cope with ourselves...
+# assert asTime((1, 2, '3')) == asTime(asTime((1, 2, '3')))
 # # Check assignment of single time
 # assert asTime((1, 2, '3')) == (1, 2, Timedelta(3, 's'))
 # # If we don't get a tuple, return one filled with nulls
@@ -149,18 +164,23 @@ def asTime(atime=None, unit=BASEUNIT):
 # assert (asTime([(1, 2, 3), (4, 5, '6')])) == (None, None, None)
 # -
 
+# The `asTimes()` function takes in a list of 3-tuples and attempts to return them as a list of valid `asTime()` returned tuples.
+
 def asTimes(atime=None, unit=BASEUNIT):
-    """Generate a list of valid Times."""
+    """Generate a list of valid Times tuples."""
     if isinstance(atime, list):
         t = [asTime(_t, unit=unit) for _t in atime]
         return t
     return [asTime(atime, unit=unit)]
 
 
+
 # + tags=["active-ipynb"]
 # # Check assignment of list of times
 # assert (asTimes([(1, 2, 3), (4, 5, '6')]) == 
 #         [(1, 2, Timedelta(3, 's')), (4, 5, Timedelta(6, 's'))])
+# # Check we can cope with ourselves
+# asTimes([(1, 2, 3), (4, 5, '6')]) == asTimes(asTimes([(1, 2, 3), (4, 5, '6')]))
 # # If we get a single time, return it as Time list
 # assert asTimes((1, 2, '3')) == [(1, 2, Timedelta(3, 's'))]
 # # If we get nonsense, retun null tuples
@@ -169,6 +189,177 @@ def asTimes(atime=None, unit=BASEUNIT):
 #         [(None, None, None), (4, 5, Timedelta(6, 's')), (None, None, None)])
 # -
 
+# As well as the simple 3-tuples, we also acknowledge a 4-tuple labeled time 3-tuple, which adds a label that might be used for display purposes, for example.
+#
+# The `asLabeledTime()` function attempts to return a labeled time elements in various formats:
+#
+# - as a 2-tuple: `((index, uid, timedelta), label)`
+# - as a 4-tuple: `((index, uid, timedelta, label)`
+#
+# The `asLabeledTime()` function also seeks to be accommodating as to what it can accept:
+#
+# - a 2-tuple: `((index, uid, timedelta), label)`;
+# - a 3-tuple: `(index, uid, timedelta)`, in which case, we generate the label optionally from the uid, or from a label assigned from a `label` parameter;
+# - a 4-tuple: `(index, uid, timedelta, label)`.
+#
+# If a 3-tuple is passed without an associated `label`, the `label` can be automatically set to the `uid` value.
+
+def asLabeledTime(altime=None, label=None, unit=BASEUNIT,
+                  useuid=None, singletuple=False, probeuid = False):
+    """
+    Generate a valid LabeledTimes tuple.
+    
+    altime must be a two, three or four tuple.
+    If no label is provided, and we have a three tuple,
+    by default use the uid as the label, or False to return empty string.
+    
+    If a three tuple or four tuple is provided, use label if provided.
+    
+    If singletuple is True, return (index, uid, time, label).
+    If singletuple is False, return ((index, uid, time), label)).
+    
+    The label is cast as a string.
+    """
+    if probeuid:
+        if isinstance(altime, tuple) and len(altime) == 3 and label is None:
+            useuid = True if useuid is not False else useuid
+        return useuid
+    
+    if isinstance(altime, LabeledTime):
+        atime = altime.atime
+    elif isinstance(altime, tuple) and len(altime) == 3:
+        atime = altime
+        if label is None:
+            useuid = True if useuid is not False else useuid
+    elif isinstance(altime, tuple) and len(altime) in [2, 4]:
+        # The 2 tuple is of the form ((1, 2, 3), 'x')
+        if len(altime) == 2:
+            atime = altime[0]
+        else:
+            #The 4 tuple is of the form (1, 2, 3, 'x')
+            atime = altime[:-1]
+        if not label:
+            label = altime[-1]
+    else:
+        atime = (None, None, None)
+        
+    if label is not None:
+        try:
+            label = str(label)
+        except:
+            label = ''
+    elif useuid:
+        label = altime[1]
+    else:
+        label = ''  # Or should we allow None to be returned?
+
+    atime = asTime(atime, unit=unit)
+    label = str(label)
+    if singletuple:
+        return atime + (label,)
+    return (atime, label)
+
+
+# + tags=["active-ipynb"]
+# # Check nulls
+# assert asLabeledTime(probeuid=True) == None
+# assert asLabeledTime() == ((None, None, None), '')
+# assert asLabeledTime(singletuple=True) == (None, None, None, '')
+# assert asLabeledTime(label='s') == ((None, None, None), 's')
+# # Check we can create a LabeledTime from a 3-tuple and a label
+# assert (asLabeledTime((1, 2, 3000), unit='ms') ==
+#         ((1, 2, Timedelta(3, 's')), '2'))
+# # Check we can cope with ourselves
+# assert (asLabeledTime(((1, 2, 3), 'name')) ==
+#         asLabeledTime(asLabeledTime(((1, 2, 3), 'name'))))
+# assert (asLabeledTime((1, 2, 3000), unit='ms',
+#                       useuid=False, probeuid=True) == False)
+# assert (asLabeledTime((1, 2, 3000), unit='ms', useuid=False) ==
+#         ((1, 2, Timedelta(3, 's')), ''))
+# assert (asLabeledTime((1, 2, 3000), unit='ms', useuid=True) ==
+#         ((1, 2, Timedelta(3, 's')), '2'))
+# # Check we can create a LabeledTime from a 2-tuple
+# assert (asLabeledTime(((1, 2, 3), 'name')) ==
+#         ((1, 2, Timedelta(3, 's')), 'name'))
+# # Check we can create a LabeledTime from a 4-tuple
+# assert (asLabeledTime((1, 2, 4000), 'name', unit='ms') ==
+#         ((1, 2, Timedelta(4, 's')), 'name'))
+# assert (asLabeledTime((1, 2, 3000, 'name'), unit='ms') ==
+#         ((1, 2, Timedelta(3, 's')), 'name'))
+# # Check we can create a LabeledTime from a 4-tuple and a label
+# assert (asLabeledTime((1, 2, 3000, 'name'),
+#                       label='name2', unit='ms') ==
+#         ((1, 2, Timedelta(3, 's')), 'name2'))
+# assert (asLabeledTime((1, 2, 3000, 'name'), label='name2',
+#                       useuid=True, unit='ms') ==
+#         ((1, 2, Timedelta(3, 's')), 'name2'))
+# assert (asLabeledTime((1, 2, 3000, 'name'), label='name2',
+#                       useuid=True, unit='ms', singletuple=True) ==
+#         (1, 2, Timedelta(3, 's'), 'name2'))
+# -
+
+# The `asLabeledTimes()` function takes in a list of times and labels and attempts to return a list of labeled times elements of the same length.
+#
+# As with `asLabeledTime()`, we try to be forgiving in what we can accept (2-, 3- or 4-tuple).
+#
+# If the `label` parameter is a single string item, it may be used as the label for each time. If the `label` is a list of the same length as the list of times, each time is assigned it's own label. If no label is provided, the `uid` may be used as the label.
+
+def asLabeledTimes(atimes=None, labels=None, unit=BASEUNIT,
+                   useuid=None, singletuple=False):
+    """
+    Generate a list of valid LabeledTimes tuples.
+    
+    The atimes must be None or three tuples.
+    """
+    if not atimes and not labels:
+        return []
+    
+    atimes = listify(atimes)
+    labels = listify(labels)
+    
+    if not atimes and isinstance(labels, list):
+        atimes = [None] * len(labels)
+    elif isinstance(atimes, list):
+        if isinstance(labels, list) and (len(labels) == len(atimes)):
+            # All's good...
+            pass
+        elif isinstance(labels, str):
+            labels = [labels] * len(atimes)
+        else:
+            labels = [None] * len(atimes)
+        # Note: if there are 4 tuples we could try to save those labels?
+        
+    timelabels = zip(atimes, labels)
+    t = [asLabeledTime(_t, label=_label, unit=unit, singletuple=singletuple,
+                       useuid=useuid) for (_t, _label) in timelabels]
+    return t
+
+
+# + tags=["active-ipynb"]
+# # Check null behaviour
+# assert asLabeledTimes() == []
+# assert asLabeledTimes(labels='1') == [((None, None, None), '1')]
+# assert (asLabeledTimes(labels='1', singletuple=True) ==
+#         [(None, None, None, '1')])
+# # Check two tuple
+# assert asLabeledTimes(atimes=((1, 2, 3), 'n')) == [((1, 2, Timedelta(3, 's')), 'n')]
+# # Check three tuple
+# assert asLabeledTimes(atimes=(1, 2, 3)) == [((1, 2, Timedelta(3, 's')), '2')]
+# assert (asLabeledTimes(atimes=(1, 2, 4), useuid=False) ==
+#         [((1, 2, Timedelta(4, 's')), '')])
+# # Check we can cope with ourselves
+# assert (asLabeledTimes([(1, 2, 3), (4, 5, '6')]) ==
+#        asLabeledTimes(asLabeledTimes([(1, 2, 3), (4, 5, '6')])))
+# # Cope with mutliple items
+# assert (asLabeledTimes([(1, 2, 3), (4, 5, '6')]) == 
+#         [((1, 2, Timedelta(3, 's')), '2'), ((4, 5, Timedelta(6, 's')), '5')])
+# # Check four tuple
+# assert asLabeledTimes(atimes=(1, 2, 3, 4)) == [((1, 2, Timedelta(3, 's')), '4')]
+# -
+
+# ## Classes
+
+# + run_control={"marked": false}
 class Time:
     """
     A time unit expresses an indexed time for an identified thing.
@@ -178,21 +369,99 @@ class Time:
 
     def __init__(self, atime=None, unit=BASEUNIT):
         """Create a valid time."""
-        atime = asTime(atime, unit=BASEUNIT)
-        (self.index, self.uid, self.time) = atime
-        self.atime = (self.index, self.uid, self.time)
+        self._setTime(atime, unit)
 
+    def _setTime(self, atime, unit):
+        """Set attributes on Time object."""
+        if isinstance(atime, Time):
+            (self.index, self.uid, self.time) = (atime.index, atime.uid, atime.time)
+        else:
+            atime = asTime(atime, unit=unit)
+            (self.index, self.uid, self.time) = atime
+        self.atime = (self.index, self.uid, self.time)
+        
     def __repr__(self):
-        """Display time 3-tuple."""
-        return repr(self.atime)
+        """Display Time 3-tuple."""
+        return f'Basetime: {repr(self.atime)}'
 
 
 # + tags=["active-ipynb"]
 # # Check we return a simple Time tuple
+# assert Time().atime == (None, None, None)
+# assert isinstance(Time(), Time)
+# assert isinstance(Time().atime, tuple) and len(Time().atime) == 3
 # assert Time((1, 2, '3')).atime == (1, 2, Timedelta(3, 's'))
+# assert Time((1, 2, '3000'), unit='ms').atime == (1, 2, Timedelta(3, 's'))
+# assert Time(Time((1, 2, '3000'), unit='ms')).atime == (1, 2, Timedelta(3, 's'))
+#
+# Time((1, 2, '3000'), unit='ms')
+# -
+
+class LabeledTime(Time):
+    """Extend Time to included a label."""
+    
+    def __init__(self, altime=None, label=None,
+                 unit=BASEUNIT, useuid=None):
+        """
+        Create a labeled Time.
+        
+        Labels can be used as display properties in charts, etc.
+        We can pass in a Time and a label, or a LabeledTime.
+        """
+        (atime, label) = asLabeledTime(altime=altime, label=label,
+                                       unit=unit, useuid=useuid,
+                                       singletuple=False)
+        Time.__init__(self, atime=atime, unit=unit)
+
+
+        self.label = label
+
+        self.ltime = (self.index, self.uid, self.time, self.label)
+        
+    def _check_label(self, label):
+        """Check the label is a string."""
+        
+    def __repr__(self):
+        """Display LabeledTime 4-tuple."""
+        return f'Labeledtime: {repr(self.ltime)}'
+
+
+
+assert LabeledTime().label == ''
+assert LabeledTime(label='name').label == 'name'
+assert LabeledTime().atime == (None, None, None)
+assert LabeledTime().ltime == (None, None, None, '')
+assert (LabeledTime((1, 2, 3000), unit='ms', 
+                    useuid=False).atime == (1, 2, Timedelta(3, 's')))
+assert (LabeledTime((1, 2, 3000), unit='ms', 
+                    useuid=False).ltime == (1, 2, Timedelta(3, 's'), ''))
+assert (LabeledTime((1, 2, 3000, 'name'), unit='ms', 
+                    useuid=False).ltime == (1, 2, Timedelta(3, 's'), 'name'))
+
 
 # +
-# TO DO  - labelled time - add a  label to the time tuple
+# Check empty instantiation
+assert LabeledTime().ltime == (None, None, None, '')
+assert isinstance(LabeledTime(), LabeledTime)
+assert isinstance(LabeledTime().atime, tuple) and len(LabeledTime().atime) == 3
+assert isinstance(LabeledTime().ltime, tuple) and len(LabeledTime().ltime) == 4
+# Check we can create a LabeledTime from a 3-tuple and a label
+assert LabeledTime((1, 2, 3000), 'name', unit='ms').atime == Time((1, 2, 3)).atime
+assert LabeledTime((1, 2, 3), 'name').label == 'name'
+# Check handling of lack of label
+assert LabeledTime((1, 2, 3)).label == 2
+assert LabeledTime((1, 2, 3), useuid=False).label == ''
+# Check we can create a LabeledTime from a 4-tuple
+assert LabeledTime((1, 2, 3000, 'name'), unit='ms').atime == Time((1, 2, 3)).atime
+assert LabeledTime((1, 2, 3000, 'name'), unit='ms').label == 'name'
+# Check we can generate label from uid
+assert LabeledTime((1, 2, 3), useuid=True).label == 2
+# Check we can create a LabeledTime from a LabeledTime
+assert LabeledTime(LabeledTime((1, 2, 3), 'name')).atime == Time((1, 2, 3)).atime
+
+LabeledTime((1, 2, 3), 'name')
+
+
 # -
 
 # ## Times
@@ -200,28 +469,88 @@ class Time:
 # Represent a set of times, eg laptimes, stagetimes, splittimes.
 
 class Times():
-    """Represent a list of times, eg laptimes, stagetimes, splittimes."""
+    """Represent a list of times, e.g. laptimes, stagetimes, splittimes."""
     
-    def __init__(self, times, unit=BASEUNIT):
-        """Base representation of a set of times."""
-        self.times = asTimes(times, unit=unit)
+    def __init__(self, times=None, unit=BASEUNIT):
+        """Base representation of a set of Time elements."""
+        if not times:
+            self.atimes = []
+        else:
+            self.atimes = asTimes(times, unit=unit)
         
     def rebase(self, times=None, unit=BASEUNIT):
-        """Rebase times"""
+        """Rebase Times"""
         pass
+    
+    def __repr__(self):
+        """Display Times list."""
+        # TO DO need to shorten this if it's too long
+        return f'Times: {repr(self.atimes)}'
 
 
+# +
+# Check null
+assert Times().atimes == []
+assert isinstance(Times(), Times)
 # Check a single time is expressed as a list of Times
-assert Times((1, 2, 3)).times == [(1, 2, Timedelta(3, 's'))]
+assert Times((1, 2, 3)).atimes == [(1, 2, Timedelta(3, 's'))]
 # Check a list of times is expressed as a list of Times
-assert (Times([(1, 2, 3000), (4, 5, "6000")], unit='ms').times ==
+assert (Times([(1, 2, 3000), (4, 5, "6000")], unit='ms').atimes ==
         [(1, 2, Timedelta(3, 's')), (4, 5, Timedelta(6, 's'))])
+
+Times([(1, 2, 3000), (4, 5, "6000")])
+
+
+# -
+
+# ## LabeledTimes
+#
+# Support the labeling of a `Times` list.
+
+class LabeledTimes(Times):
+    """Labeled list of times."""
+
+    def __init__(self, times=None, labels=None,
+                 unit=BASEUNIT, useuid=None):
+        """Create a list of labeled Time elements."""
+        if times is None:
+            self.ltimes = []
+        else:
+            _ls = asLabeledTimes(atimes=times, labels=labels,
+                                         unit=unit, useuid=useuid)
+            print(_ls)
+            lt = [_lt[-1] for _lt in _ls]
+            self.atimes = [_lt[:3] for _lt in _ls]
+            self.ltimes = [_lt for _lt in zip(self.atimes, lt)]
+        
+    def __repr__(self):
+        """Display LabeledTimes list."""
+        # TO DO need to shorten this if it's too long
+        return f'LabeledTimes: {repr(self.ltimes)}'
+
+
+LabeledTimes([(1, 2, 3), 'name']).atimes
+
+# +
+assert LabeledTimes((1, 2, 3), 'name').atimes == [(1, 2, Timedelta(3, unit='s'))]
+assert LabeledTimes((1, 2, 3), 'name').ltimes == [(Time((1, 2, 3)).atime, 'name')]
+assert LabeledTimes((1, 2, 3), 'name').ltimes == [((1, 2, Timedelta(3, unit='s')), 'name')]
+assert (LabeledTimes(((1, 2, 3), 'name'), ((4, 5, 6), 'name2')).atimes ==
+        [(1, 2, Timedelta(3, unit='s')), (4, 5, Timedelta(6, unit='s'))])
+
+LabeledTimes((1, 2, 3), 'name')
+# -
+
+# Check null
+assert isinstance(LabeledTimes(), LabeledTimes)
+assert LabeledTimes().ltimes == []
+assert LabeledTimes().atimes == []
 
 
 # ## MultiTimes
 #
 # `MultiTimes` are used to collect sets of times, for example, the sets of split times within a multi-split rally stage.
-# m
+#
 # `MultiTimes` arrange individual `Times` lists using an ordered `dict`.
 #
 # `MultiTimes` may point to `MultiTimes`. For example, a `MultiTimes` object for a rally may contain a simple `dict` of stage times, or it may contain a `dict` of `MultiTimes` each describing the split times for the corresponding stage.
@@ -242,8 +571,4 @@ def depth(d):
  depth({'a': {'b': 2}, 'x': {'b': {'a': 3}}}),)
 
 # + tags=["active-ipynb"]
-# def __init__(self, sdbRallyId=None, stageId=None, live=False,
-#                  autoseed=False, slurp=False, dbname=None):
-#         """Build on classes for each page of API/WRC live timing website."""
-#         WRCCars.__init__(self, sdbRallyId=sdbRallyId, live=live,
-#                          autoseed=autoseed, dbname=dbname)
+#
