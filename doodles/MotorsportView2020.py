@@ -446,41 +446,38 @@ class LabeledTime(Time):
         """Display LabeledTime 4-tuple."""
         return f'Labeledtime: {repr(self.ltime)}'
 
-assert LabeledTime().label == ''
-assert LabeledTime(label='name').label == 'name'
-assert LabeledTime().atime == (None, None, None)
-assert LabeledTime().ltime == (None, None, None, '')
-assert (LabeledTime((1, 2, 3000), unit='ms', 
-                    useuid=False).atime == (1, 2, Timedelta(3, 's')))
-assert (LabeledTime((1, 2, 3000), unit='ms', 
-                    useuid=False).ltime == (1, 2, Timedelta(3, 's'), ''))
-assert (LabeledTime((1, 2, 3000, 'name'), unit='ms', 
-                    useuid=False).ltime == (1, 2, Timedelta(3, 's'), 'name'))
 
-
-# +
-# Check empty instantiation
-assert LabeledTime().ltime == (None, None, None, '')
-assert isinstance(LabeledTime(), LabeledTime)
-assert isinstance(LabeledTime().atime, tuple) and len(LabeledTime().atime) == 3
-assert isinstance(LabeledTime().ltime, tuple) and len(LabeledTime().ltime) == 4
-# Check we can create a LabeledTime from a 3-tuple and a label
-assert LabeledTime((1, 2, 3000), 'name', unit='ms').atime == Time((1, 2, 3)).atime
-assert LabeledTime((1, 2, 3), 'name').label == 'name'
-# Check handling of lack of label
-assert LabeledTime((1, 2, 3)).label == '2'
-assert LabeledTime((1, 2, 3), useuid=False).label == ''
-# Check we can create a LabeledTime from a 4-tuple
-assert LabeledTime((1, 2, 3000, 'name'), unit='ms').atime == Time((1, 2, 3)).atime
-assert LabeledTime((1, 2, 3000, 'name'), unit='ms').label == 'name'
-# Check we can generate label from uid
-assert LabeledTime((1, 2, 3), useuid=True).label == '2'
-# Check we can create a LabeledTime from a LabeledTime
-assert LabeledTime(LabeledTime((1, 2, 3), 'name')).atime == Time((1, 2, 3)).atime
-
-LabeledTime((1, 2, 3), 'name')
-
-
+# + tags=["active-ipynb"]
+# # Check empty instantiation
+# assert LabeledTime().atime == (None, None, None)
+# assert LabeledTime().label == ''
+# assert LabeledTime(label='name').label == 'name'
+# assert LabeledTime().ltime == (None, None, None, '')
+# assert isinstance(LabeledTime(), LabeledTime)
+# assert isinstance(LabeledTime().atime, tuple) and len(LabeledTime().atime) == 3
+# assert isinstance(LabeledTime().ltime, tuple) and len(LabeledTime().ltime) == 4
+# # Check we can create a LabeledTime from a 3-tuple and a label
+# assert LabeledTime((1, 2, 3000), 'name', unit='ms').atime == Time((1, 2, 3)).atime
+# assert LabeledTime((1, 2, 3), 'name').label == 'name'
+# # Check handling of lack of label
+# assert LabeledTime((1, 2, 3)).label == '2'
+# assert LabeledTime((1, 2, 3), useuid=False).label == ''
+# # Check useuid flag
+# assert (LabeledTime((1, 2, 3000), unit='ms', 
+#                     useuid=False).atime == (1, 2, Timedelta(3, 's')))
+# assert (LabeledTime((1, 2, 3000), unit='ms', 
+#                     useuid=False).ltime == (1, 2, Timedelta(3, 's'), ''))
+# assert (LabeledTime((1, 2, 3000, 'name'), unit='ms', 
+#                     useuid=False).ltime == (1, 2, Timedelta(3, 's'), 'name'))
+# # Check we can create a LabeledTime from a 4-tuple
+# assert LabeledTime((1, 2, 3000, 'name'), unit='ms').atime == Time((1, 2, 3)).atime
+# assert LabeledTime((1, 2, 3000, 'name'), unit='ms').label == 'name'
+# # Check we can generate label from uid
+# assert LabeledTime((1, 2, 3), useuid=True).label == '2'
+# # Check we can create a LabeledTime from a LabeledTime
+# assert LabeledTime(LabeledTime((1, 2, 3), 'name')).atime == Time((1, 2, 3)).atime
+#
+# LabeledTime((1, 2, 3), 'name')
 # -
 
 # ## Times
