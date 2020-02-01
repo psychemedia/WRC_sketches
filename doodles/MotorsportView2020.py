@@ -518,6 +518,7 @@ class LabeledTimes(Times):
     def __init__(self, times=None, labels=None,
                  unit=BASEUNIT, useuid=None):
         """Create a list of labeled Time elements."""
+        Times.__init__(self)
         if times is None:
             self.ltimes = []
         else:
@@ -535,10 +536,9 @@ class LabeledTimes(Times):
         return f'LabeledTimes: {repr(self.ltimes)}'
 
 
-LabeledTimes([((1, 2, 3), 'name'), ((4, 5, 6), 'name2')]).atimes
-
-
 # +
+assert LabeledTimes().atimes == []
+assert LabeledTimes().ltimes == []
 assert LabeledTimes((1, 2, 3), 'name').atimes == [(1, 2, Timedelta(3, unit='s'))]
 assert LabeledTimes((1, 2, 3), 'name').ltimes == [(Time((1, 2, 3)).atime, 'name')]
 assert LabeledTimes((1, 2, 3), 'name').ltimes == [((1, 2, Timedelta(3, unit='s')), 'name')]
@@ -546,13 +546,9 @@ assert (LabeledTimes([((1, 2, 3), 'name'), ((4, 5, 6), 'name2')]).atimes ==
         [(1, 2, Timedelta(3, unit='s')), (4, 5, Timedelta(6, unit='s'))])
 
 LabeledTimes((1, 2, 3), 'name')
+
+
 # -
-
-# Check null
-assert isinstance(LabeledTimes(), LabeledTimes)
-assert LabeledTimes().ltimes == []
-assert LabeledTimes().atimes == []
-
 
 # ## MultiTimes
 #
