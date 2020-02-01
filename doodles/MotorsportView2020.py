@@ -174,7 +174,6 @@ def asTimes(atime=None, unit=BASEUNIT):
     return [asTime(atime, unit=unit)]
 
 
-
 # + tags=["active-ipynb"]
 # # Check assignment of list of times
 # assert (asTimes([(1, 2, 3), (4, 5, '6')]) == 
@@ -203,6 +202,14 @@ def asTimes(atime=None, unit=BASEUNIT):
 # - a 4-tuple: `(index, uid, timedelta, label)`.
 #
 # If a 3-tuple is passed without an associated `label`, the `label` can be automatically set to the `uid` value.
+
+# + tags=["active-ipynb"]
+# # Placeholder to make test run
+# class LabeledTime:
+#     """Placeholder."""
+#     
+#     pass
+# -
 
 def asLabeledTime(altime=None, label=None, unit=BASEUNIT,
                   useuid=None, singletuple=False, probeuid = False):
@@ -298,7 +305,7 @@ def asLabeledTime(altime=None, label=None, unit=BASEUNIT,
 #         (1, 2, Timedelta(3, 's'), 'name2'))
 # -
 
-# The `asLabeledTimes()` function takes in a list of times and labels and attempts to return a list of labeled times elements of the same length.
+# The `asLabeledTimes()` function takes in a list of times and labels and attempts to return a list of 2-tuples `((index, uid, timedelta), label)` representing labeled times elements of the same length as the supplied list of times.
 #
 # As with `asLabeledTime()`, we try to be forgiving in what we can accept (2-, 3- or 4-tuple).
 #
@@ -350,11 +357,11 @@ def asLabeledTimes(atimes=None, labels=None, unit=BASEUNIT,
 # # Check we can cope with ourselves
 # assert (asLabeledTimes([(1, 2, 3), (4, 5, '6')]) ==
 #        asLabeledTimes(asLabeledTimes([(1, 2, 3), (4, 5, '6')])))
-# # Cope with mutliple items
-# assert (asLabeledTimes([(1, 2, 3), (4, 5, '6')]) == 
-#         [((1, 2, Timedelta(3, 's')), '2'), ((4, 5, Timedelta(6, 's')), '5')])
 # # Check four tuple
 # assert asLabeledTimes(atimes=(1, 2, 3, 4)) == [((1, 2, Timedelta(3, 's')), '4')]
+# # Cope with multiple items
+# assert (asLabeledTimes([(1, 2, 3), (4, 5, '6')]) == 
+#         [((1, 2, Timedelta(3, 's')), '2'), ((4, 5, Timedelta(6, 's')), '5')])
 # -
 
 # ## Classes
@@ -425,8 +432,6 @@ class LabeledTime(Time):
         """Display LabeledTime 4-tuple."""
         return f'Labeledtime: {repr(self.ltime)}'
 
-
-
 assert LabeledTime().label == ''
 assert LabeledTime(label='name').label == 'name'
 assert LabeledTime().atime == (None, None, None)
@@ -449,13 +454,13 @@ assert isinstance(LabeledTime().ltime, tuple) and len(LabeledTime().ltime) == 4
 assert LabeledTime((1, 2, 3000), 'name', unit='ms').atime == Time((1, 2, 3)).atime
 assert LabeledTime((1, 2, 3), 'name').label == 'name'
 # Check handling of lack of label
-assert LabeledTime((1, 2, 3)).label == 2
+assert LabeledTime((1, 2, 3)).label == '2'
 assert LabeledTime((1, 2, 3), useuid=False).label == ''
 # Check we can create a LabeledTime from a 4-tuple
 assert LabeledTime((1, 2, 3000, 'name'), unit='ms').atime == Time((1, 2, 3)).atime
 assert LabeledTime((1, 2, 3000, 'name'), unit='ms').label == 'name'
 # Check we can generate label from uid
-assert LabeledTime((1, 2, 3), useuid=True).label == 2
+assert LabeledTime((1, 2, 3), useuid=True).label == '2'
 # Check we can create a LabeledTime from a LabeledTime
 assert LabeledTime(LabeledTime((1, 2, 3), 'name')).atime == Time((1, 2, 3)).atime
 
@@ -516,11 +521,12 @@ class LabeledTimes(Times):
         if times is None:
             self.ltimes = []
         else:
+            # By default, asLabeledTimes returns a 2-tuple
             _ls = asLabeledTimes(atimes=times, labels=labels,
                                          unit=unit, useuid=useuid)
-            print(_ls)
-            lt = [_lt[-1] for _lt in _ls]
-            self.atimes = [_lt[:3] for _lt in _ls]
+
+            lt = [_lt[1] for _lt in _ls]
+            self.atimes = [_lt[0] for _lt in _ls]
             self.ltimes = [_lt for _lt in zip(self.atimes, lt)]
         
     def __repr__(self):
@@ -529,13 +535,14 @@ class LabeledTimes(Times):
         return f'LabeledTimes: {repr(self.ltimes)}'
 
 
-LabeledTimes([(1, 2, 3), 'name']).atimes
+LabeledTimes([((1, 2, 3), 'name'), ((4, 5, 6), 'name2')]).atimes
+
 
 # +
 assert LabeledTimes((1, 2, 3), 'name').atimes == [(1, 2, Timedelta(3, unit='s'))]
 assert LabeledTimes((1, 2, 3), 'name').ltimes == [(Time((1, 2, 3)).atime, 'name')]
 assert LabeledTimes((1, 2, 3), 'name').ltimes == [((1, 2, Timedelta(3, unit='s')), 'name')]
-assert (LabeledTimes(((1, 2, 3), 'name'), ((4, 5, 6), 'name2')).atimes ==
+assert (LabeledTimes([((1, 2, 3), 'name'), ((4, 5, 6), 'name2')]).atimes ==
         [(1, 2, Timedelta(3, unit='s')), (4, 5, Timedelta(6, unit='s'))])
 
 LabeledTimes((1, 2, 3), 'name')
