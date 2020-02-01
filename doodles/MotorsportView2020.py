@@ -241,10 +241,10 @@ def asLabeledTime(altime=None, label=None, unit=BASEUNIT,
             useuid = True if useuid is not False else useuid
     elif isinstance(altime, tuple) and len(altime) in [2, 4]:
         if len(altime) == 2:
-            # The 2 tuple is of the form ((1, 2, 3), 'x')
+            # The 2 tuple is of the form ((index, uid, timedelta), 'label')
             atime = altime[0]
         else:
-            #The 4 tuple is of the form (1, 2, 3, 'x')
+            #The 4 tuple is of the form (index, uid, timedelta, 'label')
             atime = altime[:-1]
         if not label:
             # If there is a label provided,
@@ -361,21 +361,26 @@ def asLabeledTimes(atimes=None, labels=None, unit=BASEUNIT,
 # assert (asLabeledTimes(labels='1', singletuple=True) ==
 #         [(None, None, None, '1')])
 # # Check two tuple
-# assert asLabeledTimes(atimes=((1, 2, 3), 'n')) == [((1, 2, Timedelta(3, 's')), 'n')]
+# assert (asLabeledTimes(atimes=((1, 2, 3), 'n')) ==
+#         [((1, 2, Timedelta(3, 's')), 'n')])
 # # Check three tuple
-# assert asLabeledTimes(atimes=(1, 2, 3)) == [((1, 2, Timedelta(3, 's')), '2')]
+# assert (asLabeledTimes(atimes=(1, 2, 3)) ==
+#         [((1, 2, Timedelta(3, 's')), '2')])
 # assert (asLabeledTimes(atimes=(1, 2, 4), useuid=False) ==
 #         [((1, 2, Timedelta(4, 's')), '')])
 # # Check we can cope with ourselves
 # assert (asLabeledTimes([(1, 2, 3), (4, 5, '6')]) ==
 #        asLabeledTimes(asLabeledTimes([(1, 2, 3), (4, 5, '6')])))
 # # Check four tuple
-# assert asLabeledTimes(atimes=(1, 2, 3, 4)) == [((1, 2, Timedelta(3, 's')), '4')]
+# assert (asLabeledTimes(atimes=(1, 2, 3, 4)) ==
+#         [((1, 2, Timedelta(3, 's')), '4')])
 # # Cope with multiple items
 # assert (asLabeledTimes([(1, 2, 3), (4, 5, '6')]) == 
-#         [((1, 2, Timedelta(3, 's')), '2'), ((4, 5, Timedelta(6, 's')), '5')])
+#         [((1, 2, Timedelta(3, 's')), '2'),
+#          ((4, 5, Timedelta(6, 's')), '5')])
 # assert (asLabeledTimes([(1, 2, 3), (4, 5, '6')], ['n1', 'n2']) == 
-#         [((1, 2, Timedelta(3, 's')), 'n1'), ((4, 5, Timedelta(6, 's')), 'n2')])
+#         [((1, 2, Timedelta(3, 's')), 'n1'),
+#          ((4, 5, Timedelta(6, 's')), 'n2')])
 # -
 
 # ## Classes
@@ -533,11 +538,11 @@ class LabeledTimes(Times):
         if times is None:
             self.ltimes = []
         else:
-            # By default, asLabeledTimes returns a 2-tuple
+            # By default, asLabeledTimes returns a list of 2-tuples
             _ls = asLabeledTimes(atimes=times, labels=labels,
                                          unit=unit, useuid=useuid)
-            self.labels = [_lt[1] for _lt in _ls]
             self.atimes = [_lt[0] for _lt in _ls]
+            self.labels = [_lt[1] for _lt in _ls]
             self.ltimes = [_lt for _lt in zip(self.atimes, self.labels)]
 
     def __repr__(self):
@@ -545,8 +550,6 @@ class LabeledTimes(Times):
         # TO DO need to shorten this if it's too long
         return f'LabeledTimes: {repr(self.ltimes)}'
 
-
-LabeledTimes([((1, 2, 3)), ((4, 5, 6))], ['name1', 'name2'])
 
 # +
 # Check nulls
