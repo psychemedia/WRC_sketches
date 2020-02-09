@@ -20,10 +20,9 @@
 # + tags=["active-ipynb"]
 # %load_ext autoreload
 # %autoreload 2
-
-# + tags=["active-ipynb"]
-# from ewrc_api import EWRC
 # -
+
+from ewrc_api import EWRC
 
 import dakar_utils as dakar
 from dakar_utils import moveColumn, sparkline2, sparklineStep, moreStyleDriverSplitReportBaseDataframe
@@ -176,6 +175,7 @@ def gapBar(df):
 # #rally_stub='54762-corbeau-seats-rally-tendring-clacton-2019'
 # rally_stub='61961-mgj-engineering-brands-hatch-winter-stages-2020'
 # rally_stub='59972-rallye-automobile-de-monte-carlo-2020'
+# rally_stub='60500-visit-conwy-cambrian-rally-2020/'
 # ewrc=EWRC(rally_stub)
 
 # + tags=["active-ipynb"]
@@ -485,26 +485,30 @@ def rally_report(ewrc, rebase, codes=None):
     return tmp, s2
 
 
-aa='/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465687/'
-ewrc.df_overall_rebased_to_leader.loc[aa]
+# + tags=["active-ipynb"]
+# aa='/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465687/'
+# ewrc.df_overall_rebased_to_leader.loc[aa]
 
 # +
 # TO DO
 # pace to stage winner  - bar chart cf. Gap
 # call it: stagePace
-# -
-
-ewrc=EWRC(rally_stub)
 
 # + tags=["active-ipynb"]
-# from IPython.display import HTML
+# ewrc=EWRC(rally_stub)
+# -
+
+from IPython.display import HTML
+
+# + tags=["active-ipynb"]
+#
 # wREBASE = '/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465681/'
 # tmp, s2 = rally_report(ewrc, wREBASE, codes='RC1') #codes='all'
 # display(HTML(s2))
-# -
 
-ewrc.get_entry_list()
-ewrc.rally_classes
+# + tags=["active-ipynb"]
+# ewrc.get_entry_list()
+# ewrc.rally_classes
 
 # + tags=["active-ipynb"]
 # df_allInOne, df_overall, df_stages, df_overall_pos = ewrc.get_stage_times()
@@ -519,28 +523,6 @@ ewrc.rally_classes
 # IPython.OutputArea.auto_scroll_threshold = 9999;
 
 # + tags=["active-ipynb"]
-# ewrc.get_entry_list()
-#
-# import ipywidgets as widgets
-# from ipywidgets import interact
-# from IPython.display import Image
-#
-# classes = widgets.Dropdown(
-#     #Omit car 0
-#     options=['All']+ewrc.df_entry_list[ewrc.df_entry_list['CarNum']!='#0']['Class'].dropna().unique().tolist(),
-#     value='All', description='Class:', disabled=False )
-#
-#
-# carNum = widgets.Dropdown(
-#     options=ewrc.carsInClass(classes.value),
-#     description='Car:', disabled=False)
-#
-# def update_drivers(*args):
-#     carlist = ewrc.carsInClass(classes.value)
-#     carNum.options = carlist
-#     
-# classes.observe(update_drivers, 'value')
-#
 # def rally_report2( cl, carNum):
 #     #rebase = df_rally_overall[df_rally_overall['CarNum']==carNum].index[0]
 #     #carNums = df_rally_overall[df_rally_overall['CarNum'].isin(ewrc.carsInClass(cl))].index.tolist()
@@ -572,7 +554,31 @@ ewrc.rally_classes
 #     print('...done')
 #     display(Image(_))
 #     print(_)
+
+# + tags=["active-ipynb"]
+# ewrc.get_entry_list()
 #
+# import ipywidgets as widgets
+# from ipywidgets import interact
+# from IPython.display import Image
+#
+# classes = widgets.Dropdown(
+#     #Omit car 0
+#     options=['All']+ewrc.df_entry_list[ewrc.df_entry_list['CarNum']!='#0']['Class'].dropna().unique().tolist(),
+#     value='All', description='Class:', disabled=False )
+#
+#
+# carNum = widgets.Dropdown(
+#     options=ewrc.carsInClass(classes.value),
+#     description='Car:', disabled=False)
+#
+# def update_drivers(*args):
+#     carlist = ewrc.carsInClass(classes.value)
+#     carNum.options = carlist
+#     
+# classes.observe(update_drivers, 'value')
+
+# + tags=["active-ipynb"]
 # interact(rally_report2, cl=classes, carNum=carNum);
 
 # + tags=["active-ipynb"]
@@ -582,18 +588,18 @@ ewrc.rally_classes
 
 import matplotlib.pyplot as plt
 
+
 # +
 # #%pip install adjustText
-# -
-
-#Create xmin and xmax vals for stage indicators by cumulative distance
-xy = [_ for _ in zip(ewrc.stage_distances.cumsum().shift(fill_value=0).round(2), 
-                     ewrc.stage_distances.cumsum().round(2)) ]
-xy
-
 
 # + tags=["active-ipynb"]
-# # Generate a dataframe that allows us to plot values actross the cumulative distance
+# #Create xmin and xmax vals for stage indicators by cumulative distance
+# xy = [_ for _ in zip(ewrc.stage_distances.cumsum().shift(fill_value=0).round(2), 
+#                      ewrc.stage_distances.cumsum().round(2)) ]
+# xy
+
+# + tags=["active-ipynb"]
+# # Generate a dataframe that allows us to plot values across the cumulative distance
 # dff=df.T.reset_index().melt(id_vars='index')
 # dff = pd.merge(dff, ewrc.df_allInOne[['carNum']],
 #                how='left', left_on='entryId', right_index=True)
@@ -603,6 +609,9 @@ xy
 # dff['x1'] = dff['index'].apply(lambda x: xy[x-1][1] )
 # dff['xm'] = (dff['x0'] + dff['x1'])/2
 # dff
+
+# + tags=["active-ipynb"]
+# dff[dff['carNum']=='1'].iloc[0]['entryId']
 # -
 
 #https://gist.github.com/jakevdp/91077b0cae40f8f8244a
@@ -629,6 +638,26 @@ from matplotlib import patches
 import numpy as np
 
 # + tags=["active-ipynb"]
+# compared_with='/entryinfo/60500-visit-conwy-cambrian-rally-2020/2507999/'
+# rebase='/entryinfo/60500-visit-conwy-cambrian-rally-2020/2507438/'
+#
+# df.T[compared_with]>df.T[rebase]
+
+# + tags=["active-ipynb"]
+# dff[dff['entryId']==compared_with]['value']
+
+# + tags=["active-ipynb"]
+# for i in zip(xy,df.T[compared_with]>df.T[rebase]):
+#     print(i)
+# -
+
+xy
+
+import matplotlib.patches as patches
+
+# + tags=["active-ipynb"]
+#
+#
 # _ymin = 0
 #
 # PACEMAX=10
@@ -642,6 +671,7 @@ import numpy as np
 #                                 and xy[0][1] <= PACEMAX) else False for xy in lines]
 # lines = [xy for xy in lines if (pd.notna(xy[0][1]) and pd.notna(xy[1][1]) 
 #                                 and xy[0][1] <= PACEMAX)]
+#
 #
 #
 # #N = len(set(dff['entryId'].cat.codes))+1
@@ -661,6 +691,19 @@ import numpy as np
 # ax.xaxis.set_ticks_position('none')
 # ax.yaxis.set_ticks_position('none') 
 #
+#
+# narrow_compare=True
+# if compared_with:
+#     for i in zip(xy,df.T[compared_with]>df.T[rebase],
+#                  dff[dff['entryId']==compared_with]['value']):
+#         color = 'pink' if i[1] else 'lightgreen'
+#         if narrow_compare:
+#             rect = patches.Rectangle((i[0][0],0),i[0][1]-i[0][0],i[2],
+#                                      color=color)
+#             # Add the patch to the Axes
+#             ax.add_patch(rect)
+#         else:
+#             ax.axvspan(i[0][0], i[0][1], alpha=0.5, color=color)
 #
 # ax.add_collection(lc)
 #
@@ -701,8 +744,8 @@ from matplotlib.ticker import MaxNLocator
 
 
 def pace_map(ewrc, rebase='stage_winner',
-             rally_class='all', PACEMAX = 2,
-             title=None, stretch=True, drop=False):
+             rally_class='all', PACEMAX = 2,  compared_with=None, narrow_compare=True,
+             title=None, stretch=True, drop=False, filename=None):
     """Pace map chart."""
     
     def _pace_df(df):
@@ -722,7 +765,7 @@ def pace_map(ewrc, rebase='stage_winner',
         title = f'Pace Report rebased to {rebase}'
         
     df = paceReport(ewrc, rebase=rebase)
-        
+    
     if stretch:
         xy = [_ for _ in zip(ewrc.stage_distances.cumsum().shift(fill_value=0).round(2), 
                                  ewrc.stage_distances.cumsum().round(2)) ]
@@ -730,6 +773,7 @@ def pace_map(ewrc, rebase='stage_winner',
         xy = [_ for _ in zip(range(ewrc.stage_distances.size),range(1,ewrc.stage_distances.size+1))]
 
     dff = _pace_df(df)
+    
     
     #Need to tweak the whole chart to be able to show not run stages
     if drop:
@@ -775,7 +819,7 @@ def pace_map(ewrc, rebase='stage_winner',
     #Need to group by each x0, and then do left and right in stage rank order
     offset=True
     for x0, xm, y, s in zip(dff['x0'], dff['xm'], dff['value'], dff['carNum']):
-        if pd.notna(y) and y <= PACEMAX:
+        if pd.notna(y) and y <= PACEMAX and y >= -PACEMAX:
             offset = not offset
             plt.text((not offset)*x0+offset*(xm), y, s, size=10)
             if y < _ymin:
@@ -794,6 +838,20 @@ def pace_map(ewrc, rebase='stage_winner',
     xmax, xmin = ax.get_xlim()
 
     _ymax = ymax if ymax < PACEMAX else PACEMAX
+    _ymin = ymin if ymin > -PACEMAX else -PACEMAX
+    
+    #Add background colour to show +/- compared with another driver
+    if compared_with:
+        for i in zip(xy,df.T[compared_with]<0, dff[dff['entryId']==compared_with]['value']):
+            color = 'pink' if i[1] else 'lightgreen'
+            if narrow_compare:
+                rect = patches.Rectangle((i[0][0],0),i[0][1]-i[0][0],i[2],
+                                     color=color)
+                # Add the patch to the Axes
+                ax.add_patch(rect)
+            else:
+                ax.axvspan(i[0][0], i[0][1], alpha=0.5, color=color)
+
 
     #Add stage labels
     for _i, _xy in enumerate(xy):
@@ -819,10 +877,20 @@ def pace_map(ewrc, rebase='stage_winner',
         ax.xaxis.set_major_formatter(plt.NullFormatter())
         ax.set_xlabel(None)
 
-    ax.set_ylim( _ymax, _ymin-0.3 );
+    ax.set_ylim( _ymax, _ymin-0.3 )
+    
+    if filename:
+        plt.savefig(filename)
+        
+    return ax
 # -
 
-pace_map(ewrc, PACEMAX=2, stretch=False)
+pace_map(ewrc, PACEMAX=2, stretch=True, rebase='/entryinfo/60500-visit-conwy-cambrian-rally-2020/2507999/',
+        compared_with='/entryinfo/60500-visit-conwy-cambrian-rally-2020/2507438/')
+
+
+# + tags=["active-ipynb"]
+# pace_map(ewrc, PACEMAX=2, stretch=False)
 
 # + tags=["active-ipynb"]
 # evans='/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465687/'
@@ -843,20 +911,11 @@ pace_map(ewrc, PACEMAX=2, stretch=False)
 
 # + tags=["active-ipynb"]
 # ewrc.df_stages_rebased_to_stage_winner.head()
-# -
 
- ewrc.df_allInOne
+# + tags=["active-ipynb"]
+#  ewrc.df_allInOne
 
 # + run_control={"marked": false} tags=["active-ipynb"]
-#
-#
-# stretch = False
-#
-# ewrc.get_itinerary()
-#
-# fig, ax = plt.subplots(figsize=(12,8))
-# ax.figsize = (16,6)
-#
 # #dff = ewrc.df_stages_rebased_to_stage_winner.head()
 # #bib: overall_leader, stage_winner
 # #gPace from PushingPace https://pushingpace.com/gpace/
@@ -875,110 +934,132 @@ pace_map(ewrc, PACEMAX=2, stretch=False)
 # rebase='/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465687/' #evans
 # #rebase='/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465681/'#neuville'
 # #rebase='/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465687/'
-# pilot = 'Evans'
-# #rebase=None
-# if rebase:
-#     dff = ewrc.df_stages.head()
-#     dff.apply(_rebaseTimes, bib=rebase, axis=0)
-#     #Need to now subtract that driver's times
-#     dff = dff - dff.loc[rebase]
-# else:
-#     dff = ewrc.df_stages_rebased_to_stage_winner.head()
-#     pilot = 'Each Stage Winner'
-#     
-# dff = pd.merge(dff, ewrc.df_allInOne[['carNum']],
-#                        how='left', left_index=True, right_index=True)
-# dff.set_index('carNum', drop=True, inplace=True)
-# dff_cumsum = dff.cumsum(axis=1)
+# rebase='/entryinfo/60500-visit-conwy-cambrian-rally-2020/2507999/'
 #
-#
-# dff_cumsumT=dff_cumsum.T
-#
-# if stretch:
-#     xy = [_ for _ in zip(ewrc.stage_distances.cumsum().shift(fill_value=0).round(2), 
-#                              ewrc.stage_distances.cumsum().round(2)) ]
-# else:
-#     xy = [_ for _ in zip(range(ewrc.stage_distances.size),range(1,ewrc.stage_distances.size+1))]
-#
-#
-# _xy = [_x[1] for _x in xy[:len(dff_cumsum.T)]]  
-#     
-# if stretch:      
-#     for _x in _xy[:-1]:
-#         plt.axvline(_x,linestyle='dotted')
-#     dff_cumsumT.index=_xy
-#     ax = dff_cumsumT.append(pd.Series(0, index=dff_cumsumT.columns,name=0)).sort_index().plot(ax=ax)
-#     
-#     _times = dff_cumsumT.append(pd.Series(0, index=dff_cumsumT.columns,name=0)).sort_index().to_dict()
-#     ax.set_xlabel("Accumulated Competitive Distance (km)")
-#     
-#     xlim = plt.xlim()
-#     ax.set_xlim(xlim[0], xlim[1]+1)
-#
-# else:
-#     ax = dff_cumsumT.plot(ax=ax)
-#     #ax.set_xlabel("Stage")
-#     ax.get_xaxis().set_visible(False)
-#     _times=dff_cumsumT.to_dict()
-#  
-#     for _x in _xy[:-1]:
-#         plt.axvline(_x,linestyle='dotted')
-#             
-#     xlim = plt.xlim()
-#     ax.set_xlim(xlim[0]-0.1, xlim[1]+0.1)
-#
-# for _car in _times:
-#     for _dist in _times[_car]:
-#         if _dist:
-#             ax.plot(_dist,_times[_car][_dist], marker='D',
-#                     markersize=3, mec='grey', c='grey') #
-#
-#
-# #Add marker for stage winner
-# # dff.min() gives the minimum (rebased) stage time (So need to cope w/ NA?)
-# winner_stage = sorted(list(dff[dff==dff.min()].stack().index), key=lambda x: x[1])
-# for (_x,_y) in winner_stage:
-#     if not stretch:
-#         ax.plot(_y, dff_cumsum.loc[_x,_y],
-#                 marker='D', markersize=2, c='red')
-#     else:
-#         ax.plot(xy[_y-1][1], dff_cumsumT.iloc[_y-1][winner_stage[_y-1][0]],
-#                 marker='D', markersize=2, c='red')
-#
-#         
-#     
-# plt.title(f'Off the ultimate pace chart (summed delta relative to {pilot})', pad=25)
-# ax.set_ylabel(f"Off the summed stagetime pace relative to {pilot} (s)")
-#
-# #x-axis integers: https://stackoverflow.com/a/38096332/454773
-# ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-#
-#
-# #Add stage labels
-# _ymin=0
-# if stretch:
-#     for( _i, _xy) in  [(_i, _xy) for (_i, _xy) in enumerate(xy)][:len(winner_stage)]:
-#         plt.text((_xy[0]+_xy[1])/2, _ymin-5, _i+1, size=10,
-#                 bbox=dict(facecolor='red', alpha=0.5))
-# else:
-#     ylim = plt.ylim()
-#     for( _i, _xy) in  [(_i, _xy) for (_i, _xy) in enumerate(xy)][:len(winner_stage)]:
-#         plt.text((_xy[0]+_xy[1])/2, ylim[1]+10, _i+1, size=10,
-#                 bbox=dict(facecolor='red', alpha=0.5))
-#     ax.xaxis.set_ticks_position('none')
-#         
-# plt.axhline(0,linestyle='dotted')
-#
-# plt.box(on=None)
-# #ax.yaxis.set_ticks_position('none') 
-#     
-# plt.gca().invert_yaxis()
-#
+# #pilot = 'Evans'
+# rebase=None
+
+# + run_control={"marked": false}
+def off_the_pace_chart(ewrc, stretch=True, figsize=(16,6), rebase=None,
+                       filename=None):
+
+    ewrc.get_itinerary()
+
+    fig, ax = plt.subplots(figsize=(12,8))
+    ax.figsize = figsize
+
+
+    if rebase:
+        dff = ewrc.df_stages.head()
+        dff.apply(_rebaseTimes, bib=rebase, axis=0)
+        #Need to now subtract that driver's times
+        dff = dff - dff.loc[rebase]
+    else:
+        dff = ewrc.df_stages_rebased_to_stage_winner.head()
+        pilot = 'Each Stage Winner'
+
+    dff = pd.merge(dff, ewrc.df_allInOne[['carNum']],
+                           how='left', left_index=True, right_index=True)
+    dff.set_index('carNum', drop=True, inplace=True)
+    dff_cumsum = dff.cumsum(axis=1)
+
+
+    dff_cumsumT=dff_cumsum.T
+
+    if stretch:
+        xy = [_ for _ in zip(ewrc.stage_distances.cumsum().shift(fill_value=0).round(2), 
+                                 ewrc.stage_distances.cumsum().round(2)) ]
+    else:
+        xy = [_ for _ in zip(range(ewrc.stage_distances.size),range(1,ewrc.stage_distances.size+1))]
+
+
+    _xy = [_x[1] for _x in xy[:len(dff_cumsum.T)]]  
+
+    if stretch:      
+        for _x in _xy[:-1]:
+            plt.axvline(_x,linestyle='dotted')
+        dff_cumsumT.index=_xy
+        ax = dff_cumsumT.append(pd.Series(0, index=dff_cumsumT.columns,name=0)).sort_index().plot(ax=ax)
+
+        _times = dff_cumsumT.append(pd.Series(0, index=dff_cumsumT.columns,name=0)).sort_index().to_dict()
+        ax.set_xlabel("Accumulated Competitive Distance (km)")
+
+        xlim = plt.xlim()
+        ax.set_xlim(xlim[0], xlim[1]+1)
+
+    else:
+        ax = dff_cumsumT.plot(ax=ax)
+        #ax.set_xlabel("Stage")
+        ax.get_xaxis().set_visible(False)
+        _times=dff_cumsumT.to_dict()
+
+        for _x in _xy[:-1]:
+            plt.axvline(_x,linestyle='dotted')
+
+        xlim = plt.xlim()
+        ax.set_xlim(xlim[0]-0.1, xlim[1]+0.1)
+
+    for _car in _times:
+        for _dist in _times[_car]:
+            if _dist:
+                ax.plot(_dist,_times[_car][_dist], marker='D',
+                        markersize=3, mec='grey', c='grey') #
+
+
+    #Add marker for stage winner
+    # dff.min() gives the minimum (rebased) stage time (So need to cope w/ NA?)
+    winner_stage = sorted(list(dff[dff==dff.min()].stack().index), key=lambda x: x[1])
+    for (_x,_y) in winner_stage:
+        if not stretch:
+            ax.plot(_y, dff_cumsum.loc[_x,_y],
+                    marker='D', markersize=2, c='red')
+        else:
+            ax.plot(xy[_y-1][1], dff_cumsumT.iloc[_y-1][winner_stage[_y-1][0]],
+                    marker='D', markersize=2, c='red')
+
+
+
+    plt.title(f'Off the ultimate pace chart (summed delta relative to {pilot})', pad=25)
+    ax.set_ylabel(f"Off the summed stagetime pace relative to {pilot} (s)")
+
+    #x-axis integers: https://stackoverflow.com/a/38096332/454773
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+
+    #Add stage labels
+    _ymin=0
+    if stretch:
+        for( _i, _xy) in  [(_i, _xy) for (_i, _xy) in enumerate(xy)][:len(winner_stage)]:
+            plt.text((_xy[0]+_xy[1])/2, _ymin-5, _i+1, size=10,
+                    bbox=dict(facecolor='red', alpha=0.5))
+    else:
+        ylim = plt.ylim()
+        for( _i, _xy) in  [(_i, _xy) for (_i, _xy) in enumerate(xy)][:len(winner_stage)]:
+            plt.text((_xy[0]+_xy[1])/2, ylim[1]+10, _i+1, size=10,
+                    bbox=dict(facecolor='red', alpha=0.5))
+        ax.xaxis.set_ticks_position('none')
+
+    plt.axhline(0,linestyle='dotted')
+
+    plt.box(on=None)
+    #ax.yaxis.set_ticks_position('none') 
+
+    plt.gca().invert_yaxis()
+    
+    if filename:
+        plt.savefig(filename)
+
+    return ax
+
+# + tags=["active-ipynb"]
+# off_the_pace_chart(ewrc);
+
+# + tags=["active-ipynb"]
+#  ewrc.df_stages.head()
+
+# + tags=["active-ipynb"]
+# ewrc.df_allInOne
 # -
-
- ewrc.df_stages.head()
-
-ewrc.df_allInOne
 
 # ## Pace Leveller Map
 #
@@ -987,8 +1068,10 @@ ewrc.df_allInOne
 #
 # Pace required to level up by end of Stage N from from stage M (s/km):
 
-# Use: requiredStagePace()
-requiredStagePace(ewrc, 'SS9', rebase=None, target_stage=None).head(10)
+# + tags=["active-ipynb"]
+# # Use: requiredStagePace()
+# requiredStagePace(ewrc, 'SS9', rebase=None, target_stage=None).head(10)
+# -
 
 
 
@@ -998,47 +1081,47 @@ requiredStagePace(ewrc, 'SS9', rebase=None, target_stage=None).head(10)
 
 import ipywidgets as widgets
 
-# + run_control={"marked": false}
-#Based on https://stackoverflow.com/q/48020345/454773
-
-_sliders = []
-_sliders_left = []
-_sliders_right = []
-
-sliders = {}
-
-for (_i, _stage) in enumerate(xy):
-    _sliders.append(widgets.FloatSlider(value=0,
-                                        min=-1.5, max=1.5,
-                                        description=f'SS{_i+1} ({ ewrc.stage_distances[_i+1]})'))
-
-colheight = len(xy)/2
-for (_i, _stage_slider) in enumerate(_sliders):
-    sliders[f'SS{_i+1}'] = _stage_slider
-    if _i < colheight:
-        _sliders_left.append(_stage_slider)
-    else:
-        _sliders_right.append(_stage_slider)
-
-left_box = widgets.VBox(_sliders_left)
-right_box = widgets.VBox(_sliders_right)
-ui = widgets.VBox([widgets.Label(value="Rally Strategist"),
-                   widgets.HBox([left_box, right_box])])
-
-
-def f(**kwargs):
-    _cumdelta=0
-    for x in kwargs:
-        _dist = ewrc.stage_distances[int(x.replace('SS',''))]
-        _delta = round(kwargs[x]*_dist,2)
-        _cumdelta = round(_cumdelta+_delta, 2)
-        print(x, _dist,
-              kwargs[x], _delta, _cumdelta )
-
-out = widgets.interactive_output(f, {f'SS{_i+1}':_s for (_i, _s) in enumerate(_sliders) })
-
-
-display(ui, out)
+# + run_control={"marked": false} tags=["active-ipynb"]
+# #Based on https://stackoverflow.com/q/48020345/454773
+#
+# _sliders = []
+# _sliders_left = []
+# _sliders_right = []
+#
+# sliders = {}
+#
+# for (_i, _stage) in enumerate(xy):
+#     _sliders.append(widgets.FloatSlider(value=0,
+#                                         min=-1.5, max=1.5,
+#                                         description=f'SS{_i+1} ({ ewrc.stage_distances[_i+1]})'))
+#
+# colheight = len(xy)/2
+# for (_i, _stage_slider) in enumerate(_sliders):
+#     sliders[f'SS{_i+1}'] = _stage_slider
+#     if _i < colheight:
+#         _sliders_left.append(_stage_slider)
+#     else:
+#         _sliders_right.append(_stage_slider)
+#
+# left_box = widgets.VBox(_sliders_left)
+# right_box = widgets.VBox(_sliders_right)
+# ui = widgets.VBox([widgets.Label(value="Rally Strategist"),
+#                    widgets.HBox([left_box, right_box])])
+#
+#
+# def f(**kwargs):
+#     _cumdelta=0
+#     for x in kwargs:
+#         _dist = ewrc.stage_distances[int(x.replace('SS',''))]
+#         _delta = round(kwargs[x]*_dist,2)
+#         _cumdelta = round(_cumdelta+_delta, 2)
+#         print(x, _dist,
+#               kwargs[x], _delta, _cumdelta )
+#
+# out = widgets.interactive_output(f, {f'SS{_i+1}':_s for (_i, _s) in enumerate(_sliders) })
+#
+#
+# display(ui, out)
 # -
 
 
