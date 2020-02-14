@@ -543,8 +543,9 @@ def _rebaseTimes(times, bib=None, basetimes=None):
 class EWRC:
     """Class for eWRC data for a particular rally."""
 
-    def __init__(self, stub):
+    def __init__(self, stub, live=False):
         self.stub = stub
+        self.live = live
         
         self.stage_result_links = None
         
@@ -568,20 +569,25 @@ class EWRC:
         
         self.df_entry_list = None
         self.rally_classes = None
+        
+        self.entryFromCar = None
+        self.carFromEntry = None
  
         self.df_stage_result = pd.DataFrame(columns=stage_result_cols)
         self.df_stage_overall = pd.DataFrame(columns=stage_overall_cols)
         self.df_stage_retirements = pd.DataFrame(columns=retirement_cols+retirement_extra_cols)
         self.df_stage_penalties = pd.DataFrame(columns=penalty_cols+penalty_extra_cols)
 
-    def carsInClass(self, qclass):
+    def carsInClass(self, qclass, typ='carNum'):
         #Can't we also pass a dict of key/vals to the widget?
         #Omit car 0
         df_entry_list = self.get_entry_list()
         if qclass.lower()=='all':
             return df_entry_list[df_entry_list['CarNum']!='#0']['carNum'].dropna().to_list()
-        return df_entry_list[(df_entry_list['CarNum']!='#0') & (df_entry_list['Class']==qclass)]['carNum'].to_list()
-
+        _cars = df_entry_list[(df_entry_list['CarNum']!='#0') & (df_entry_list['Class']==qclass)]['carNum'].to_list()
+        if typ=='entryId':
+            _cars = [self.entryFromCar[c] for c in self.entryFromCar if c in _cars]
+        return _cars
 
     def set_rebased_times(self):
         if self.df_stages_rebased_to_overall_leader is None \
@@ -597,17 +603,23 @@ class EWRC:
             leaderTimes = self.df_overall.min()
             self.df_overall_rebased_to_leader = self.df_overall.apply(_rebaseTimes, basetimes=leaderTimes, axis=1)
 
+    def _set_car_entry_lookups(self, df, force=False):
+        """Look-up dicts between car number and entry."""
+        if force or not self.carFromEntry or not self.entryFromCar:
+            self.carFromEntry = df['carNum'].to_dict()
+            self.entryFromCar =  {v:k for (k, v) in self.carFromEntry.items()}
     
     def get_final(self):
         if self.df_rally_overall is None:
             self.df_rally_overall = get_final(self.stub)
+            self._set_car_entry_lookups(self.df_rally_overall)
         return self.df_rally_overall
         
     def get_stage_times(self):
-        if self.df_overall is None or self.df_stages is None or self.df_overall_pos is None:
+        if self.live or self.df_overall is None or self.df_stages is None or self.df_overall_pos is None:
             self.df_allInOne, self.df_overall, self.df_stages, \
                 self.df_overall_pos, self.df_stages_pos = get_stage_times(self.stub)
-
+            self._set_car_entry_lookups(self.df_allInOne)
         return self.df_allInOne, self.df_overall, self.df_stages, self.df_overall_pos
     
     def get_itinerary(self):
@@ -651,7 +663,7 @@ class EWRC:
             elif 'final' in stages or 'last' in stages:
                 stages = [k for k in links.keys() if 'leg' not in k][-1]
             for stage in stages:
-                if stage not in self.df_stage_result['Stage'].unique() and stage in links:
+                if self.live or (stage not in self.df_stage_result['Stage'].unique() and stage in links):
                     df_stage_result, df_stage_overall, df_stage_retirements, \
                         df_stage_penalties = get_stage_results(links[stage])
                     self.df_stage_result = self.df_stage_result.append(df_stage_result, sort=False).reset_index(drop=True)
@@ -664,6 +676,8 @@ class EWRC:
                     self.df_stage_overall[self.df_stage_overall['Stage'].isin(stages)], \
                     self.df_stage_retirements[self.df_stage_retirements['Stage'].isin(stages)], \
                     self.df_stage_penalties[self.df_stage_penalties['Stage'].isin(stages)]
+        
+        self._set_car_entry_lookups(self.df_stage_result)
         
         return self.df_stage_result, self.df_stage_overall, \
                 self.df_stage_retirements, self.df_stage_penalties
