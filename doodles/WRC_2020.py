@@ -16,12 +16,9 @@
 
 # # WRC Scraper  2020
 #
+# The `WRC2020` package provides a means of scraping timing data from the WRC website and working with it in-memory, or storing it in a database.
 #
-# *TO DO  - add in database elements. Schema will be in `wrcResults2020.sql`.*
-#
-# There may be duplication of data across various objects in the final class. This is for convenience as much as anything, trying to preserve both captures of the original data with combined or derived data, as well as trying to put the data in places we can easily find it. Consistency in a live setting is where this may fall apart!
-#
-# *Add in `asyncio` scheduler elements to call WRC API regularly. Avoid race conditions by scheduling items together in the same scheduled event if they compete for the same write resource.*
+# *TO DO: Add in `asyncio` scheduler elements to call WRC API regularly. Avoid race conditions by scheduling items together in the same scheduled event if they compete for the same write resource.*
 
 # + tags=["active-ipynb"]
 # %load_ext autoreload
@@ -111,7 +108,7 @@ class Pickler:
         with open(fn, 'wb') as f:
             pickle.dump(self, f)
             print(f'Pickled to {fn}')
-        self.db_connect(dbname=zz.dbname)
+        self.db_connect(dbname=self.dbname)
 
 
 
@@ -151,7 +148,7 @@ class SQLiteDB:
 
         If we forget to create a database, this will create one.
         """
-        print('upserting')
+        print(f'upserting into {table}')
         _upserts = []
 
         if isinstance(table, str):
@@ -186,6 +183,7 @@ class SQLiteDB:
         for (_table, _data, _pk) in _upserts:
             # TO DO - the try is to cope with this issue:
             # https://github.com/simonw/sqlite-utils/issues/73#issuecomment-571138093
+            # The ignore does not result in a dupe: the original row is left in place
             if isinstance(_data, pd.DataFrame) and _notnull(_data) and _pk is not None:
                 try:
                     self.db[_table].upsert_all(_data.to_dict(orient='records'),
@@ -224,6 +222,18 @@ class SQLiteDB:
         query = "SELECT * FROM sqlite_master where type='table';"
         return self.q(query)
 
+    def exportschema(self, fn='WRC2020db_setup.sql'):
+        """Export database schema."""
+        with open(fn, 'w') as f:
+            for table in self.dbtables()['sql']:
+                f.write(f'{table}\n\n')
+
+    def dump(self, fn='WRC2020db.sql'):
+        """Export database contents to text file."""
+        with open(fn, 'w') as f:
+            for line in self.db.conn.iterdump():
+                f.write(f'{line}\n')
+
 
 class WRCBase(IPythonWarner, SQLiteDB, Pickler):
     """Base class for all WRC stuff."""
@@ -235,6 +245,25 @@ class WRCBase(IPythonWarner, SQLiteDB, Pickler):
 
     def _null():
         pass
+
+
+class WRCLive(WRCBase):
+    """Base class for live rallies."""
+
+    def __init__(self, live=False, dbname=None):
+        """Initialise class for live datasets."""
+        WRCBase.__init__(self, dbname=dbname)
+
+        self.live = live
+        
+    def stageStatus(self, stageId):
+        """Get status of a stage."""
+        if hasattr(self, 'stages'):
+            _stage_status = self.stages.loc[self.stages['stageId'] == stageId]
+            if not _stage_status.empty:
+                return _stage_status['status'].iloc[0]
+        
+        return None
 
 
 # + run_control={"marked": false}
@@ -274,10 +303,11 @@ class WRCSeasonBase(WRCBase):
 # + tags=["active-ipynb"]
 # zz = WRCSeasonBase(autoseed=True)  # .season_external_id
 # zz.db_connect()
-# -
 
-zz.pickle()
+# + tags=["active-ipynb"]
+# zz.pickle()
 # !ls *.pickle
+# -
 
 class WRCSeasonCategories(WRCSeasonBase):
     """Class describing season categories."""
@@ -433,11 +463,11 @@ class WRCActiveSeasonEvents(SQLiteDB):
 # zz.current_season_events.head()
 # zz.fetchActiveSeasonEvents()
 # zz.dbtables()
+
+# + tags=["active-ipynb"]
+# zz.dbfy([('current_season_events', 'id')])
+# zz.dbtables()
 # -
-
-zz.dbfy([('current_season_events', 'id')])
-zz.dbtables()
-
 
 class WRCRally_sdb(WRCBase):
     """
@@ -474,16 +504,6 @@ class WRCRally_sdb(WRCBase):
 # zz.dbtables()
 # -
 
-class WRCLive(WRCBase):
-    """Base class for live rallies."""
-
-    def __init__(self, live=False, dbname=None):
-        """Initialise class for live datasets."""
-        WRCBase.__init__(self, dbname=dbname)
-
-        self.live = live
-
-
 class WRCActiveRally(WRCRally_sdb, WRCLive):
     """Create class for the active rally."""
 
@@ -513,10 +533,9 @@ class WRCActiveRally(WRCRally_sdb, WRCLive):
 # # zz = WRCActiveRally(dbname=TESTDB)#.sdbRallyId
 # # zz.dbtables()
 # zz = WRCActiveRally()
-# -
 
-zz.event
-
+# + tags=["active-ipynb"]
+# zz.event
 
 # + tags=["active-ipynb"]
 # zz = WRCRally_sdb(autoseed=True)
@@ -818,10 +837,10 @@ class WRCRally(WRCRally_sdb):
 
     # TO DO - define iterators?
 
-
-zz = WRCRally(autoseed=True, dbname=TESTDB)
-display(zz.rally)
-# zz.dbtables()
+# + tags=["active-ipynb"]
+# zz = WRCRally(autoseed=True, dbname=TESTDB)
+# display(zz.rally)
+# # zz.dbtables()
 
 # +
 # TO DO - have a check stages function to get some data...
@@ -858,16 +877,15 @@ class WRCRallyStages(WRCItinerary):
         """Return last completed stage ID."""
         return self.stages[self.stages['status'] == 'Completed'].iloc[-1]['stageId']
 
+# + tags=["active-ipynb"]
+# zz = WRCRallyStages(autoseed=True, dbname=TESTDB)
+# zz.richstages.head()  # stages / controls
+# # zz._checkStages()[1].head()
+# # zz.lastCompletedStage()
+# zz.dbtables()
 
-# -
-
-zz = WRCRallyStages(autoseed=True, dbname=TESTDB)
-zz.richstages.head()  # stages / controls
-# zz._checkStages()[1].head()
+# + tags=["active-ipynb"]
 # zz.lastCompletedStage()
-zz.dbtables()
-
-zz.lastCompletedStage()
 
 # +
 # Does this actually do anything other than possible checks?
@@ -951,27 +969,41 @@ class WRCOverall(WRCRallyStage):
         self._checkRallyId(sdbRallyId)
         self._checkStages(self.sdbRallyId)
         stageId = self._checkStageId(self.sdbRallyId, stageId)
+        
+        if self.stageStatus(stageId) == 'ToRun':
+            return
+
         if stageId:
             self.overall[stageId] = getOverall(self.sdbRallyId, stageId)
             self.dbfy('overall', self.overall[stageId], ['stageId', 'entryId'])
+
     def __call__(self):
         """Make overall class callable. Returns dataframe."""
         return self.overall
 
+    def __repr__(self):
+        """Overall class serialisation."""
+        return f'Overall for stageIds: {", ".join([str(k) for k in zz.overall.keys()])}'
 
-zz = WRCOverall(stageId=1528, dbname=TESTDB)
-#zz.fetchOverall()
-#zz.rallyId
+
+# + tags=["active-ipynb"]
+# zz = WRCOverall(stageId=1528, dbname=TESTDB)
+# #zz.fetchOverall()
+# #zz.rallyId
 
 # + tags=["active-ipynb"]
 # zz = WRCOverall(stageId=1528, dbname=TESTDB)
 # zz.fetchOverall()
 # zz.dbtables()
+
+# + tags=["active-ipynb"]
+# zz._checkStages(sdbRallyId)
+# display(zz.stages)
 # -
 
-zz._checkStages(sdbRallyId)
-display(zz.stages)
-
+# ### TO DO  - we can start experimenting with MotorsportView2020 classes here
+#
+# For example, set `self.astagetimes = {}` on `WRCStageTimes` that can then take stage indexed `Times` lists?
 
 class WRCStageTimes(WRCRallyStage):
     """Class for stage times table."""
@@ -998,6 +1030,10 @@ class WRCStageTimes(WRCRallyStage):
         self._checkRallyId(sdbRallyId)
         self._checkStages(self.sdbRallyId)
         self._checkStageId(self.sdbRallyId, stageId)
+
+        if self.stageStatus(stageId) == 'ToRun':
+            return
+
         if stageId:
             self.stagetimes[stageId] = getStageTimes(self.sdbRallyId, stageId)
             self.dbfy('stagetimes', self.stagetimes[stageId],
@@ -1043,6 +1079,10 @@ class WRCSplitTimes(WRCRallyStage):
         self._checkRallyId(sdbRallyId)
         self._checkStages(self.sdbRallyId)
         self._checkStageId(self.sdbRallyId, stageId)
+        
+        if self.stageStatus(stageId) == 'ToRun':
+            return
+        
         if stageId:
             (self.splitPoints[stageId], self.entrySplitPointTimes[stageId],
              self.splitPointTimes[stageId]) = getSplitTimes(self.sdbRallyId, stageId)
@@ -1057,12 +1097,11 @@ class WRCSplitTimes(WRCRallyStage):
                       self.splitPointTimes[stageId],
                       ['splitPointTimeId', 'splitPointId', 'entryId', 'stageId'])
 
-
-# + tags=["active.ipynb"]
-zz = WRCSplitTimes(stageId = 1528, dbname=TESTDB)
-zz.fetchSplitTimes()
-zz.dbtables()
-
+# + tags=["active-ipynb"]
+# zz = WRCSplitTimes(stageId = 1528, dbname=TESTDB)
+# zz.fetchSplitTimes()
+# zz.dbtables()
+#
 # -
 
 
@@ -1230,14 +1269,19 @@ class WRCEvent(WRCCars, WRCPenalties, WRCRetirements, WRCStartlist,
 # zz = WRCEvent(dbname='wrc2020bigtest1.db')
 #
 # zz.rallyslurper()
-# -
 
-zz.pickle('wrc-montecarlo.pickle')
+# + tags=["active-ipynb"]
+# zz.pickle('wrc-montecarlo.pickle')
 
-zz.db_connect(dbname='wrc2020bigtest1.db')
-zz.legs
-int(zz.legs.loc[0, 'startListId'])
+# + tags=["active-ipynb"]
+# with open('WRC2020db.sql', 'w') as f:
+#     f.write(''.join(zz.dbtables()['sql'].to_list()))
+# !head WRC2020db.sql 
 
+# + tags=["active-ipynb"]
+# zz.db_connect(dbname='wrc2020bigtest1.db')
+# zz.legs
+# int(zz.legs.loc[0, 'startListId'])
 
 # +
 #This class needs renaming...
@@ -1267,10 +1311,10 @@ class WRC2020(WRCActiveSeasonEvents, WRCEvent):
     
     
     
-# -
 
-zz = WRC2020().getActiveSeasonEvents()
-#zz
+# + tags=["active-ipynb"]
+# zz = WRC2020().getActiveSeasonEvents()
+# #zz
 
 # + tags=["active-ipynb"]
 # #zz = WRCEvent(slurp=True)
@@ -1283,9 +1327,9 @@ zz = WRC2020().getActiveSeasonEvents()
 # wrc=WRC2020()
 # wrc.getActiveSeasonEvents()
 # wrc.activeseasonevents.current_season_events
-# -
 
-wrc.getStartlist()
+# + tags=["active-ipynb"]
+# wrc.getStartlist()
 
 # + tags=["active-ipynb"]
 # wrc.itinerary.sections
