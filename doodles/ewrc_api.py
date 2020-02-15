@@ -348,6 +348,13 @@ def get_stage_times(stub, dropnarow=True):
                     p = int(p[-1].strip('.'))
                 positions.append(p)
                 penalties.append(penalty)
+            # TO DO - how do we account for cancelled stages?
+            # If we add in blanks we get balnks for un-run stages too?
+            #else:
+            #    stagetimes.append('')
+            #    overalltimes.append('')
+             #   positions.append('')
+            #    penalties.append('')
 
         t.append({'entryId':entryId,
                   'driverNav': driverNav,
@@ -599,6 +606,8 @@ class EWRC:
         self.df_itinerary_leg_totals = None
         self.df_itinerary = None
         self.df_full_itinerary =None
+
+        self.stage_distances_all = None
         self.stage_distances = None
         
         self.df_entry_list = None
@@ -657,14 +666,21 @@ class EWRC:
         return self.df_allInOne, self.df_overall, self.df_stages, self.df_overall_pos
     
     def get_itinerary(self):
-        if self.event_dist is None or self.df_itinerary_leg_totals is None \
+        if self.live or self.event_dist is None or self.df_itinerary_leg_totals is None \
             or self.df_itinerary is None or self.df_full_itinerary is None:
                 self.event_dist, self.df_itinerary_leg_totals, \
                     self.df_itinerary, self.df_full_itinerary_df = get_itinerary(self.stub)
-        
-        _stage_distances = self.df_itinerary['Distance']
-        _stage_distances.index = [int(i.lstrip('SS')) for i in _stage_distances.index]
+
+        _stage_distances = self.df_itinerary['Distance'][~self.df_itinerary['Time'].str.contains('cancelled')]
+        # Stage distances do not include cancelled stages
+        # The following is the correct stage index
+        #_stage_distances.index = [int(i.lstrip('SS')) for i in _stage_distances.index]
+        #As a hack, to cope with cancelled stages, reindex
+        _stage_distances.reset_index(drop=True, inplace=True)
+        _stage_distances.index += 1 
         self.stage_distances = _stage_distances
+        self.stage_distances_all = self.df_itinerary['Distance']
+    
         return self.event_dist, self.df_itinerary_leg_totals, \
                 self.df_itinerary, self.df_full_itinerary
     

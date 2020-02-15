@@ -97,7 +97,7 @@ def _gapToLeaderBar(Xtmpq, typ, milliseconds=True, flip=True, items=None):
         Xtmpq.columns = ['SS_{}_{}'.format(c, typ) for c in Xtmpq.columns]
     _tmp='_tmp'
     k = '{}GapToLeader'.format(typ)
-    Xtmpq[_tmp] = Xtmpq[[c for c in Xtmpq.columns ]].values.tolist()
+    Xtmpq[_tmp] = Xtmpq[[c for c in Xtmpq.columns]].values.tolist()
     flip = -1 if flip else 1
     Xtmpq[_tmp] = Xtmpq[_tmp].apply(lambda x: [flip * y for y in x])
     #Xtmpq[k] = Xtmpq[k].apply(sparkline2, typ='bar', dot=True)
@@ -105,7 +105,7 @@ def _gapToLeaderBar(Xtmpq, typ, milliseconds=True, flip=True, items=None):
     if items is None:
         #Xtmpq[k] = Xtmpq[_tmp].apply(sparkline2, typ='bar', dot=True)
         num_partitions = num_cores if num_cores < len(Xtmpq[_tmp]) else len(Xtmpq[_tmp])
-        Xtmpq[k]=dd.from_pandas(Xtmpq[_tmp],npartitions=num_partitions).map_partitions( lambda df : df.apply( lambda x : sparkline2(x, typ='bar', dot=True)), 
+        Xtmpq[k] = dd.from_pandas(Xtmpq[_tmp], npartitions=num_partitions).map_partitions(lambda df: df.apply( lambda x : sparkline2(x, typ='bar', dot=True)), 
                                                                                        meta=pd.Series(dtype=object)).compute(scheduler='processes')
 
     else:
@@ -118,8 +118,8 @@ def _gapToLeaderBar(Xtmpq, typ, milliseconds=True, flip=True, items=None):
             items = items.index.to_list()
         #Xtmpq.loc[items,k] = Xtmpq[_tmp].loc[items].apply(sparkline2, typ='bar', dot=True)
         num_partitions = num_cores if num_cores < len(Xtmpq[_tmp]) else len(Xtmpq[_tmp])
-        Xtmpq.loc[items,k]=dd.from_pandas(Xtmpq[_tmp].loc[items],
-                                          npartitions=num_partitions).map_partitions( lambda df : df.apply( lambda x : sparkline2(x, typ='bar', dot=True)), 
+        Xtmpq.loc[items, k] = dd.from_pandas(Xtmpq[_tmp].loc[items],
+                                          npartitions=num_partitions).map_partitions(lambda df: df.apply(lambda x : sparkline2(x, typ='bar', dot=True)), 
                                                                                        meta=pd.Series(dtype=object)).compute(scheduler='processes')
 
     Xtmpq = Xtmpq.drop(_tmp, 1)
@@ -139,7 +139,9 @@ def _positionStep(Xtmpq, typ, items=None):
         #print("Time to process without Dask {}".format(t1-t0))
         num_partitions = num_cores if num_cores < len(Xtmpq[_tmp]) else len(Xtmpq[_tmp])
         t0 = time.time()
-        Xtmpq[k]=dd.from_pandas(Xtmpq[_tmp],npartitions=num_partitions).map_partitions( lambda df : df.apply(sparklineStep), meta=pd.Series(dtype=object)).compute(scheduler='processes')
+        Xtmpq[k]=dd.from_pandas(Xtmpq[_tmp],
+                                npartitions=num_partitions).map_partitions(lambda df: df.apply(sparklineStep),
+                                                                           meta=pd.Series(dtype=object)).compute(scheduler='processes')
         t1 = time.time()
         #print("Time to process with Dask {}".format(t1-t0))
         #scheduler='single-threaded | threads | processes')
@@ -148,8 +150,9 @@ def _positionStep(Xtmpq, typ, items=None):
         if isinstance(items,pd.core.frame.DataFrame):
             items = items.index.to_list() 
         #Xtmpq.loc[items, k]= Xtmpq[_tmp].loc[items].apply(sparklineStep)
-        num_partitions =num_cores if num_cores<len(items) else len(items)
-        Xtmpq.loc[items, k]=dd.from_pandas(Xtmpq[_tmp].loc[items],npartitions=num_partitions).map_partitions( lambda df : df.apply(sparklineStep), meta=pd.Series(dtype=object)).compute(scheduler='processes')
+        num_partitions = num_cores if num_cores < len(items) else len(items)
+        Xtmpq.loc[items, k] = dd.from_pandas(Xtmpq[_tmp].loc[items],
+                                             npartitions=num_partitions).map_partitions(lambda df: df.apply(sparklineStep), meta=pd.Series(dtype=object)).compute(scheduler='processes')
         
     Xtmpq = Xtmpq.drop(_tmp, 1)
     return Xtmpq 
@@ -176,6 +179,7 @@ def gapBar(df):
 # rally_stub='61961-mgj-engineering-brands-hatch-winter-stages-2020'
 # rally_stub='59972-rallye-automobile-de-monte-carlo-2020'
 # rally_stub='60500-visit-conwy-cambrian-rally-2020/'
+# rally_stub = '60140-rally-sweden-2020'
 # ewrc=EWRC(rally_stub)
 
 # + tags=["active-ipynb"]
@@ -211,6 +215,16 @@ def stageDist(ewrc, stage, expand=False, from_next=False):
 
 
 # + tags=["active-ipynb"]
+# #2,3, 4, 8, 5, 6, 7, 16,17, 18
+# ewrc.get_itinerary()
+# ewrc.stage_distances, ewrc.stage_distances_all
+# #ewrc.df_itinerary['Distance'][~ewrc.df_itinerary['Time'].str.contains('cancelled')]
+#
+# -
+
+# If a stage is cancelled, we need to make sure we put an empty result in? Or patch the stage_distances.
+
+# + tags=["active-ipynb"]
 # stageDist(ewrc, 'SS3', expand=False), stageDist(ewrc, 'SS3', expand=True), \
 # stageDist(ewrc, 'SS3', expand=True, from_next=True)
 
@@ -221,7 +235,7 @@ def stageDist(ewrc, stage, expand=False, from_next=False):
 # stageDist(ewrc, ['SS1', 'SS2'])
 
 # +
-def _rebased_pace_times(ewrc,rebase):
+def _rebased_pace_times(ewrc, rebase, rally_class='all'):
     if rebase == 'overall_leader':
         _df = ewrc.df_stages_rebased_to_overall_leader
         rebase = None
@@ -231,33 +245,51 @@ def _rebased_pace_times(ewrc,rebase):
         rebase = None
     else:
         _df = ewrc.df_stages
+    
+    if rally_class != 'all':
+        _df = _df[_df.index.isin(ewrc.carsInClass(rally_class, typ='entryId'))]
+    
+    _times = _df.apply(_rebaseTimes, bib=rebase, axis=0)
+    _distances = ewrc.stage_distances
+    
+    # This correctly does the division based on index, but if we have cancelled stages
+    # our indexes are currently mixed up. Some include the cancelled stage, others don't.
+    _df = (_times / _distances[:len(_times)] ).round(3)
+    
+        
     return _df, rebase
     
-def paceReport(ewrc, rebase=None, show=False):
+def paceReport(ewrc, rebase=None, show=False, rally_class='all'):
     ''' Time gained / lost per km on a stage. '''
 
     ewrc.set_rebased_times()
     ewrc.get_itinerary()
-    
-    _df, rebase = _rebased_pace_times(ewrc,rebase)
+        
+    _df, rebase = _rebased_pace_times(ewrc, rebase, rally_class=rally_class)
     if show:
         display(_df)
         display(rebase)
-        
-    _df = (_df.apply(_rebaseTimes, bib=rebase, axis=0) / ewrc.stage_distances).round(3)
     
     return _df.dropna(how='all', axis=1)
  
 
 
 # + tags=["active-ipynb"]
-# paceReport(ewrc, rebase='stage_winner').head()
+# ewrc.stage_distances
+
+# + tags=["active-ipynb"]
+# paceReport(ewrc, rebase='stage_winner').head(10)
 
 # + tags=["active-ipynb"]
 # paceReport(ewrc, rebase='overall_leader').head()
 
 # + tags=["active-ipynb"]
-# paceReport(ewrc, rebase='/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465687/').head()
+# #paceReport(ewrc, rebase='/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465687/').head()
+#
+# paceReport(ewrc, rebase='/entryinfo/60500-visit-conwy-cambrian-rally-2020/2507438/', rally_class='BRCJNational').head()
+
+# + tags=["active-ipynb"]
+# ewrc.df_overall
 
 # +
 def requiredStagePace(ewrc, stage, rebase=None, target_stage=None):
@@ -495,7 +527,7 @@ def rally_report(ewrc, rebase, codes=None):
 # call it: stagePace
 
 # + tags=["active-ipynb"]
-# ewrc=EWRC(rally_stub)
+# ewrc=EWRC(rally_stub, live=True)
 # -
 
 from IPython.display import HTML
@@ -522,45 +554,52 @@ from IPython.display import HTML
 # + tags=["active-ipynb"] language="javascript"
 # IPython.OutputArea.auto_scroll_threshold = 9999;
 
-# + tags=["active-ipynb"]
-# def rally_report2( cl, carNum):
-#     #rebase = df_rally_overall[df_rally_overall['CarNum']==carNum].index[0]
-#     #carNums = df_rally_overall[df_rally_overall['CarNum'].isin(ewrc.carsInClass(cl))].index.tolist()
-#     df=ewrc.df_allInOne
-#     rebase =  df[df['carNum']==carNum].index[0]
-#     #print(rebase)
-#     #carNums = df[df['carNum'].isin(ewrc.carsInClass(cl))].index.tolist()
-#     #codes = pd.DataFrame(carNums).rename(columns={0:'entryId'}).set_index('entryId')
-#
-#     #print(codes[-1:])
-#     tmp, s2 = rally_report(ewrc, rebase, codes = cl)
-#     
-#     #display(HTML(s2))
-#     #rally_logo='<img width="100%" src="/Users/tonyhirst/Documents/GitHub/WRC_sketches/doodles/images/CSRTC-Logo-Banner-2019-01-1920x600-e1527255159629.jpg"/>'
-#     rally_logo=''
-#     #rallydj_logo='<img style="float: left; src="/Users/tonyhirst/Documents/GitHub/WRC_sketches/doodles/images/rallydj.png"/>'
-#     #datasrc_logo='<img style="background-color:black;float: right;" src="/Users/tonyhirst/Documents/GitHub/WRC_sketches/doodles/images/ewrcresults800.png"/>'
-#     #bottom_logos='<div>'+rallydj_logo+datasrc_logo+'</div>'
-#     footer='<div style="margin-top:50px;margin-bottom:20px">Results and timing data sourced from <em>ewrc-results.com</em>. Chart generated by <em>rallydatajunkie.com</em>.</div>'
-#     #footer1=bottom_logos
-#     inclass='' if cl=='All' else ' (Class {})'.format(cl)
-#     title='<div><h1>Overall Results'+inclass+'</h1><p>Times rebased relative to car {}.</p></div>'.format(carNum)
-#     
-#     html='<div style="font-family:sans-serif;margin-top:10px;margin-bottom:10px"><div style="margin-top:10px;margin-bottom:50px;">'+rally_logo+'</div>'
-#     html = html+'<div style="margin-left:20px;margin-right:20px;">'+title+s2+'</div>'+footer+'</div>'
-#     
-#     print('grabbing screenshot...')
-#     _ = dakar.getTablePNG(html, fnstub='overall_{}_'.format(rebase.replace('/','_')),scale_factor=2)
-#     print('...done')
-#     display(Image(_))
-#     print(_)
+# +
+from IPython.display import Image
+
+def rally_report2(ewrc, cl, carNum):
+    #rebase = df_rally_overall[df_rally_overall['CarNum']==carNum].index[0]
+    #carNums = df_rally_overall[df_rally_overall['CarNum'].isin(ewrc.carsInClass(cl))].index.tolist()
+    
+    ewrc.get_stage_times()
+    
+    df = ewrc.df_allInOne
+    rebase =  df[df['carNum']==carNum].index[0]
+    #print(rebase)
+    #carNums = df[df['carNum'].isin(ewrc.carsInClass(cl))].index.tolist()
+    #codes = pd.DataFrame(carNums).rename(columns={0:'entryId'}).set_index('entryId')
+
+    #print(codes[-1:])
+    tmp, s2 = rally_report(ewrc, rebase, codes = cl)
+    
+    #display(HTML(s2))
+    #rally_logo='<img width="100%" src="/Users/tonyhirst/Documents/GitHub/WRC_sketches/doodles/images/CSRTC-Logo-Banner-2019-01-1920x600-e1527255159629.jpg"/>'
+    rally_logo=''
+    #rallydj_logo='<img style="float: left; src="/Users/tonyhirst/Documents/GitHub/WRC_sketches/doodles/images/rallydj.png"/>'
+    #datasrc_logo='<img style="background-color:black;float: right;" src="/Users/tonyhirst/Documents/GitHub/WRC_sketches/doodles/images/ewrcresults800.png"/>'
+    #bottom_logos='<div>'+rallydj_logo+datasrc_logo+'</div>'
+    footer='<div style="margin-top:50px;margin-bottom:20px">Results and timing data sourced from <em>ewrc-results.com</em>. Chart generated by <em>rallydatajunkie.com</em>.</div>'
+    #footer1=bottom_logos
+    inclass='' if cl=='All' else ' (Class {})'.format(cl)
+    title='<div><h1>Overall Results'+inclass+'</h1><p>Times rebased relative to car {}.</p></div>'.format(carNum)
+    
+    html='<div style="font-family:sans-serif;margin-top:10px;margin-bottom:10px"><div style="margin-top:10px;margin-bottom:50px;">'+rally_logo+'</div>'
+    html = html+'<div style="margin-left:20px;margin-right:20px;">'+title+s2+'</div>'+footer+'</div>'
+    
+    print('grabbing screenshot...')
+    _ = dakar.getTablePNG(html, fnstub='overall_{}_'.format(rebase.replace('/','_')),scale_factor=2)
+    print('...done')
+    display(Image(_))
+    print(_)
+
 
 # + tags=["active-ipynb"]
+# from ipywidgets import fixed
+#
 # ewrc.get_entry_list()
 #
 # import ipywidgets as widgets
 # from ipywidgets import interact
-# from IPython.display import Image
 #
 # classes = widgets.Dropdown(
 #     #Omit car 0
@@ -579,7 +618,7 @@ from IPython.display import HTML
 # classes.observe(update_drivers, 'value')
 
 # + tags=["active-ipynb"]
-# interact(rally_report2, cl=classes, carNum=carNum);
+# interact(rally_report2, ewrc=fixed(ewrc), cl=classes, carNum=carNum);
 
 # + tags=["active-ipynb"]
 # df = paceReport(ewrc, rebase='stage_winner')#.head()
@@ -591,6 +630,12 @@ import matplotlib.pyplot as plt
 
 # +
 # #%pip install adjustText
+
+# + tags=["active-ipynb"]
+# # Hack for sweden to cope with cancelled stage - need to address missing stage somehow
+# #ewrc.get_itinerary()
+# ewrc.stage_distances = ewrc.stage_distances[1:]
+# ewrc.stage_distances
 
 # + tags=["active-ipynb"]
 # #Create xmin and xmax vals for stage indicators by cumulative distance
@@ -638,8 +683,8 @@ from matplotlib import patches
 import numpy as np
 
 # + tags=["active-ipynb"]
-# compared_with='/entryinfo/60500-visit-conwy-cambrian-rally-2020/2507999/'
-# rebase='/entryinfo/60500-visit-conwy-cambrian-rally-2020/2507438/'
+# compared_with='/entryinfo/60140-rally-sweden-2020/2496932/'
+# rebase='/entryinfo/60140-rally-sweden-2020/2494761/'
 #
 # df.T[compared_with]>df.T[rebase]
 
@@ -649,11 +694,12 @@ import numpy as np
 # + tags=["active-ipynb"]
 # for i in zip(xy,df.T[compared_with]>df.T[rebase]):
 #     print(i)
-# -
 
-xy
+# + tags=["active-ipynb"]
+# xy
 
-import matplotlib.patches as patches
+# + tags=["active-ipynb"]
+# import matplotlib.patches as patches
 
 # + tags=["active-ipynb"]
 #
@@ -750,7 +796,7 @@ def pace_map(ewrc, rebase='stage_winner',
     
     def _pace_df(df):
         
-        dff=df.T.reset_index().melt(id_vars='index')
+        dff = df.T.reset_index().melt(id_vars='index')
         dff = pd.merge(dff, ewrc.df_allInOne[['carNum']],
                        how='left', left_on='entryId', right_index=True)
         dff['entryId'] = dff['entryId'].astype('category')
@@ -764,7 +810,7 @@ def pace_map(ewrc, rebase='stage_winner',
     if title is None:
         title = f'Pace Report rebased to {rebase}'
         
-    df = paceReport(ewrc, rebase=rebase)
+    df = paceReport(ewrc, rebase=rebase, rally_class=rally_class)
     
     if stretch:
         xy = [_ for _ in zip(ewrc.stage_distances.cumsum().shift(fill_value=0).round(2), 
@@ -792,6 +838,10 @@ def pace_map(ewrc, rebase='stage_winner',
 
     lines = [xy for xy in lines if (pd.notna(xy[0][1]) and pd.notna(xy[1][1]) 
                                     and xy[0][1] <= PACEMAX)]
+
+    if not lines:
+        # Need to increase PACEMAX
+        return
 
     #N = len(set(dff['entryId'].cat.codes))+1
     #lc = mc.LineCollection(lines, array=dff['entryId'].cat.codes,
@@ -842,7 +892,7 @@ def pace_map(ewrc, rebase='stage_winner',
     
     #Add background colour to show +/- compared with another driver
     if compared_with:
-        for i in zip(xy,df.T[compared_with]<0, dff[dff['entryId']==compared_with]['value']):
+        for i in zip(xy, df.T[compared_with]<0, dff[dff['entryId']==compared_with]['value']):
             color = 'pink' if i[1] else 'lightgreen'
             if narrow_compare:
                 rect = patches.Rectangle((i[0][0],0),i[0][1]-i[0][0],i[2],
@@ -883,11 +933,24 @@ def pace_map(ewrc, rebase='stage_winner',
         plt.savefig(filename)
         
     return ax
-# -
 
-pace_map(ewrc, PACEMAX=2, stretch=True, rebase='/entryinfo/60500-visit-conwy-cambrian-rally-2020/2507999/',
-        compared_with='/entryinfo/60500-visit-conwy-cambrian-rally-2020/2507438/')
 
+# + tags=["active-ipynb"]
+# xy
+
+# + tags=["active-ipynb"]
+# #ewrc.stage_distances = ewrc.stage_distances[1:]
+# tanak = '/entryinfo/60140-rally-sweden-2020/2494761/'
+
+# + tags=["active-ipynb"]
+# pace_map(ewrc, PACEMAX=5, stretch=True, rally_class='RC1',
+#          rebase=tanak, filename='testpng/pacemap.png');
+#
+# # TO DO  - need a 'class_winner' rebaser
+
+# + tags=["active-ipynb"]
+# pace_map(ewrc, PACEMAX=2, stretch=True, rebase='/entryinfo/60500-visit-conwy-cambrian-rally-2020/2507999/',
+#         compared_with='/entryinfo/60500-visit-conwy-cambrian-rally-2020/2507438/')
 
 # + tags=["active-ipynb"]
 # pace_map(ewrc, PACEMAX=2, stretch=False)
@@ -936,6 +999,7 @@ pace_map(ewrc, PACEMAX=2, stretch=True, rebase='/entryinfo/60500-visit-conwy-cam
 # #rebase='/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465687/'
 # rebase='/entryinfo/60500-visit-conwy-cambrian-rally-2020/2507999/'
 #
+# rebase = ewrc.df_allInOne.index.values[1]
 # #pilot = 'Evans'
 # rebase=None
 
@@ -1052,7 +1116,7 @@ def off_the_pace_chart(ewrc, stretch=True, figsize=(16,6), rebase=None,
     return ax
 
 # + tags=["active-ipynb"]
-# off_the_pace_chart(ewrc);
+# off_the_pace_chart(ewrc, filename='testpng/offpace.png');
 
 # + tags=["active-ipynb"]
 #  ewrc.df_stages.head()
