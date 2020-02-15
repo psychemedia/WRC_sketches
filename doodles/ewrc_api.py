@@ -264,6 +264,8 @@ def get_stage_results(stub):
 # stage_penalties
 # -
 
+
+
 from parse import parse
 
 def check_time_str(txt):
@@ -356,34 +358,34 @@ def get_stage_times(stub, dropnarow=True):
              #   positions.append('')
             #    penalties.append('')
 
-        t.append({'entryId':entryId,
+        t.append({'entryId': entryId,
                   'driverNav': driverNav,
-                  'driver':driver.strip(),
-                  'navigator':navigator.strip(),
-                  'carNum':carNum,
-                  'carModel':carModel,
-                  'retired':retired,
+                  'driver': driver.strip(),
+                  'navigator': navigator.strip(),
+                  'carNum': carNum,
+                  'carModel': carModel,
+                  'retired': retired,
                   'Pos': classification,
-                  'stagetimes':stagetimes,
-                  'overalltimes':overalltimes,
-                  'positions':positions,
-                  'penalties':penalties})
+                  'stagetimes': stagetimes,
+                  'overalltimes': overalltimes,
+                  'positions': positions,
+                  'penalties': penalties})
 
 
     df_allInOne = pd.DataFrame(t).set_index(['entryId'])
     
     df_overall = pd.DataFrame(df_allInOne['overalltimes'].tolist(), index= df_allInOne.index)
-    df_overall.columns = range(1,df_overall.shape[1]+1)
+    df_overall.columns = range(1, df_overall.shape[1]+1)
     
     df_overall_pos = pd.DataFrame(df_allInOne['positions'].tolist(), index= df_allInOne.index)
-    df_overall_pos.columns = range(1,df_overall_pos.shape[1]+1)
+    df_overall_pos.columns = range(1, df_overall_pos.shape[1]+1)
 
     df_stages = pd.DataFrame(df_allInOne['stagetimes'].tolist(), index= df_allInOne.index)
-    df_stages.columns = range(1,df_stages.shape[1]+1)
+    df_stages.columns = range(1, df_stages.shape[1]+1)
     
-    df_stages_pos = df_stages.rank(method='min')
-    df_stages_pos.columns = range(1,df_stages_pos.shape[1]+1)
-    
+    df_stages_pos = df_stages.reset_index().drop_duplicates(subset='entryId').set_index('entryId').rank(method='min')
+    df_stages_pos.columns = range(1, df_stages_pos.shape[1]+1)
+
     xcols = df_overall.columns
 
     for ss in xcols:
@@ -393,11 +395,10 @@ def get_stage_times(stub, dropnarow=True):
     # TO DO
     #We shouldn't really have to do this - why are there duplicates?
     #We seem to be appending rows over and over for each stage?
-    df_allInOne=df_allInOne.reset_index().drop_duplicates(subset='entryId').set_index('entryId')
-    df_overall=df_overall.reset_index().drop_duplicates(subset='entryId').set_index('entryId')
-    df_stages=df_stages.reset_index().drop_duplicates(subset='entryId').set_index('entryId')
-    df_overall_pos=df_overall_pos.reset_index().drop_duplicates(subset='entryId').set_index('entryId')
-    df_stages_pos=df_stages_pos.reset_index().drop_duplicates(subset='entryId').set_index('entryId')
+    df_allInOne = df_allInOne.reset_index().drop_duplicates(subset='entryId').set_index('entryId')
+    df_overall = df_overall.reset_index().drop_duplicates(subset='entryId').set_index('entryId')
+    df_stages = df_stages.reset_index().drop_duplicates(subset='entryId').set_index('entryId')
+    df_overall_pos = df_overall_pos.reset_index().drop_duplicates(subset='entryId').set_index('entryId')
     
     if dropnarow:
         df_allInOne = df_allInOne.dropna(how='all', axis=1)
@@ -427,6 +428,7 @@ def get_stage_times(stub, dropnarow=True):
 # display(df_overall)
 # display(df_stages)
 # display(df_overall_pos)
+# display(df_stages_pos)
 # -
 
 # ## Final Results
@@ -621,6 +623,12 @@ class EWRC:
         self.df_stage_retirements = pd.DataFrame(columns=retirement_cols+retirement_extra_cols)
         self.df_stage_penalties = pd.DataFrame(columns=penalty_cols+penalty_extra_cols)
 
+    def df_inclass_cars(self, _df, rally_class='all', typ='entryId'):
+        """Get cars in particular class."""
+        if rally_class != 'all':
+            _df = _df[_df.index.isin(self.carsInClass(rally_class, typ=typ))]
+        return _df
+
     def carsInClass(self, qclass, typ='carNum'):
         #Can't we also pass a dict of key/vals to the widget?
         #Omit car 0
@@ -632,6 +640,24 @@ class EWRC:
             _cars = [self.entryFromCar[c] for c in self.entryFromCar if c in _cars]
         return _cars
 
+    def stages_class_winners(self, rally_class='all'):
+        """Return stage winners for a specified class."""
+        _class_stage_winners = self.df_inclass_cars(self.df_stages_pos,
+                                                    rally_class=rally_class).idxmin()
+        return _class_stage_winners
+    
+    def get_class_rebased_times(self, rally_class='all', typ='stagewinner'):
+        """
+        Get times rebased relative to class.
+        Rebaser can be either class stage winner or class stage overall.
+        """
+        # TO DO  - not yet implemented for class overall
+        self.get_stage_times()
+        _stage_times = self.df_inclass_cars(self.df_stages, rally_class=rally_class)
+        df_stages_rebased_to_stage_winner = _stage_times.apply(_rebaseTimes,
+                                                               basetimes=_stage_times.min(), axis=1)
+        return df_stages_rebased_to_stage_winner
+
     def set_rebased_times(self):
         if self.df_stages_rebased_to_overall_leader is None \
                 or self.df_stages_rebased_to_stage_winner is None \
@@ -639,12 +665,14 @@ class EWRC:
             #print('setting rebased times...')
             self.get_stage_times()
             leaderStagetimes = self.df_stages.iloc[0]
-            self.df_stages_rebased_to_overall_leader = self.df_stages.apply(_rebaseTimes, basetimes=leaderStagetimes, axis=1)
+            self.df_stages_rebased_to_overall_leader = self.df_stages.apply(_rebaseTimes,
+                                                                            basetimes=leaderStagetimes, axis=1)
             #Now rebase to the stage winner
             self.df_stages_rebased_to_stage_winner = self.df_stages_rebased_to_overall_leader.apply(_rebaseTimes, basetimes=self.df_stages_rebased_to_overall_leader.min(), axis=1)
 
             leaderTimes = self.df_overall.min()
-            self.df_overall_rebased_to_leader = self.df_overall.apply(_rebaseTimes, basetimes=leaderTimes, axis=1)
+            self.df_overall_rebased_to_leader = self.df_overall.apply(_rebaseTimes,
+                                                                      basetimes=leaderTimes, axis=1)
 
     def _set_car_entry_lookups(self, df, force=False):
         """Look-up dicts between car number and entry."""

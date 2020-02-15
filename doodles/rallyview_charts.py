@@ -233,22 +233,34 @@ def stageDist(ewrc, stage, expand=False, from_next=False):
 
 # + tags=["active-ipynb"]
 # stageDist(ewrc, ['SS1', 'SS2'])
+# -
+
+# also in EWRC class as df_inclass_cars
+def _inclass_cars(ewrc, _df, rally_class='all', typ='entryId'):
+    """Get cars in particular class."""
+    if rally_class != 'all':
+        _df = _df[_df.index.isin(ewrc.carsInClass(rally_class, typ=typ))]
+    return _df
+
 
 # +
 def _rebased_pace_times(ewrc, rebase, rally_class='all'):
+    
     if rebase == 'overall_leader':
         _df = ewrc.df_stages_rebased_to_overall_leader
         rebase = None
     elif rebase is None or rebase == 'stage_winner':
         #We default to pace times rebased to stage winner
-        _df =  ewrc.df_stages_rebased_to_stage_winner
+        if rally_class == 'all':
+            _df =  ewrc.df_stages_rebased_to_stage_winner
+        else:
+            _df = ewrc.get_class_rebased_times(rally_class='RC2')
         rebase = None
     else:
         _df = ewrc.df_stages
-    
-    if rally_class != 'all':
-        _df = _df[_df.index.isin(ewrc.carsInClass(rally_class, typ='entryId'))]
-    
+        
+    _df = _inclass_cars(ewrc, _df, rally_class=rally_class, typ='entryId')
+
     _times = _df.apply(_rebaseTimes, bib=rebase, axis=0)
     _distances = ewrc.stage_distances
     
@@ -275,7 +287,7 @@ def paceReport(ewrc, rebase=None, show=False, rally_class='all'):
 
 
 # + tags=["active-ipynb"]
-# ewrc.stage_distances
+# paceReport(ewrc, rally_class='RC1')
 
 # + tags=["active-ipynb"]
 # paceReport(ewrc, rebase='stage_winner').head(10)
@@ -827,6 +839,10 @@ def pace_map(ewrc, rebase='stage_winner',
         
     _ymin = 0
 
+    # Set pacemax to be at list the min gap
+    if PACEMAX < dff['value'].min():
+        PACEMAX = dff['value'].min() * 1.5
+        
     PACEMAX = PACEMAX+0.1
 
     lines = dff.apply(lambda x: [(x['x0'],x['value']),(x['x1'],x['value'])],
@@ -934,17 +950,17 @@ def pace_map(ewrc, rebase='stage_winner',
         
     return ax
 
-
 # + tags=["active-ipynb"]
 # xy
 
 # + tags=["active-ipynb"]
 # #ewrc.stage_distances = ewrc.stage_distances[1:]
 # tanak = '/entryinfo/60140-rally-sweden-2020/2494761/'
+# ostberg = '/entryinfo/60140-rally-sweden-2020/2498361/'
 
 # + tags=["active-ipynb"]
-# pace_map(ewrc, PACEMAX=5, stretch=True, rally_class='RC1',
-#          rebase=tanak, filename='testpng/pacemap.png');
+# pace_map(ewrc, PACEMAX=2, stretch=True, rally_class='RC2',
+#          rebase=ostberg, filename='testpng/pacemap_ostberg.png');
 #
 # # TO DO  - need a 'class_winner' rebaser
 
@@ -1002,24 +1018,32 @@ def pace_map(ewrc, rebase='stage_winner',
 # rebase = ewrc.df_allInOne.index.values[1]
 # #pilot = 'Evans'
 # rebase=None
+# -
+
+
 
 # + run_control={"marked": false}
-def off_the_pace_chart(ewrc, stretch=True, figsize=(16,6), rebase=None,
-                       filename=None):
+def off_the_pace_chart(ewrc, rally_class='all',
+                       stretch=True, figsize=(16,6), rebase=None,
+                       filename=None, size=5):
 
     ewrc.get_itinerary()
 
     fig, ax = plt.subplots(figsize=(12,8))
     ax.figsize = figsize
 
-
     if rebase:
-        dff = ewrc.df_stages.head()
+        dff = ewrc.df_stages
+        dff = _inclass_cars(ewrc, dff, rally_class).head(size)
         dff.apply(_rebaseTimes, bib=rebase, axis=0)
         #Need to now subtract that driver's times
         dff = dff - dff.loc[rebase]
+        pilot = rebase
     else:
-        dff = ewrc.df_stages_rebased_to_stage_winner.head()
+        if rally_class == 'all':
+            dff = ewrc.df_stages_rebased_to_stage_winner.head(size)
+        else:
+            dff = ewrc.get_class_rebased_times(rally_class).head(size)
         pilot = 'Each Stage Winner'
 
     dff = pd.merge(dff, ewrc.df_allInOne[['carNum']],
