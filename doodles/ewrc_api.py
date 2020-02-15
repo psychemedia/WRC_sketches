@@ -28,6 +28,7 @@ from dakar_utils import getTime
 import requests
 import lxml.html as LH
 from bs4 import BeautifulSoup
+from bs4.element import NavigableString
 
 
 # ## Generic Utilities
@@ -35,9 +36,23 @@ from bs4 import BeautifulSoup
 # Utility functions.
 
 def soupify(url):
+    """Load HTML form URL and make into soup."""
     html = requests.get(url).text
     soup = BeautifulSoup(html, 'lxml') # Parse the HTML as a string
+    
+    # Remove occasional tags that might appear
+    # https://stackoverflow.com/a/40760750/454773
+    unwanted = soup.find(id="donate-main")
+    unwanted.extract()
+    
     return soup
+
+
+def no_children(node):
+    """Extract just the text and no child nodes from a soup node."""
+    #https://stackoverflow.com/a/31909680/454773
+    text = ''.join([t for t in node.contents if type(t) == NavigableString])
+    return text
 
 
 def dfify(table):
@@ -127,17 +142,24 @@ from numpy import nan
 
 from parse import parse   
 
+# + tags=["active-ipynb"]
+# details = 'SS16 La Cabanette - Col de Braus 2 [Power Stage] - 13.36 km - 26. 1. 12:18'
+# #details = 'SS6 Curbans - Venterol 2 - 20.02 km - 24. 1. 13:54'
+# pattern = 'SS{stage} {name} - {dist:f} km - {datetime}'
+# parse(pattern, details)
+# -
+
 def get_stage_results(stub):
     soup = soupify('{}{}'.format(base_url, stub))
-    
+
     details = soup.find('h4').text
-    
+
     pattern = 'SS{stage} {name} - {dist:f} km - {datetime}'
     parse_result = parse(pattern, details)
     if parse_result is None:
         pattern = 'SS{stage} - {dist:f} km'
         parse_result = parse(pattern, details)
-        print('s:',details,parse_result)
+    print(details, parse_result)
     stage_num = f"SS{parse_result['stage']}"
   
     if 'name' in parse_result:
@@ -244,6 +266,16 @@ def get_stage_results(stub):
 
 from parse import parse
 
+def check_time_str(txt):
+    """Clean a time string."""
+    
+    # Quick fix to cope with strings of the form:
+    # '11:58.0 <a name="" title="Notional time"><span class="c-blue">[N]</span></a>'
+    # This should be a proper validator.
+    txt = txt.split()[0]
+    return txt
+
+
 def get_stage_times(stub, dropnarow=True):
     url='https://www.ewrc-results.com/times/{stub}/'.format(stub=stub)
 
@@ -295,8 +327,8 @@ def get_stage_times(stub, dropnarow=True):
             txt = cleanString(stages)
             stagetimes_data = parse(pattern, txt )
             if stagetimes_data:
-                stagetimes.append(stagetimes_data['stagetime'])
-                overalltimes.append(stagetimes_data['overalltime'])
+                stagetimes.append(check_time_str(stagetimes_data['stagetime']))
+                overalltimes.append(check_time_str(stagetimes_data['overalltime']))
 
                 #Need to parse this
                 #There may be penalties in the pos
@@ -320,14 +352,15 @@ def get_stage_times(stub, dropnarow=True):
         t.append({'entryId':entryId,
                   'driverNav': driverNav,
                   'driver':driver.strip(),
-                 'navigator':navigator.strip(),
+                  'navigator':navigator.strip(),
                   'carNum':carNum,
                   'carModel':carModel,
                   'retired':retired,
                   'Pos': classification,
-                 'stagetimes':stagetimes,
-                 'overalltimes':overalltimes,
-                 'positions':positions, 'penalties':penalties})
+                  'stagetimes':stagetimes,
+                  'overalltimes':overalltimes,
+                  'positions':positions,
+                  'penalties':penalties})
 
 
     df_allInOne = pd.DataFrame(t).set_index(['entryId'])
@@ -377,6 +410,7 @@ def get_stage_times(stub, dropnarow=True):
 # rally_stub = '42870-rallye-automobile-de-monte-carlo-2018'
 # rally_stub='61961-mgj-engineering-brands-hatch-winter-stages-2020'
 # rally_stub='59972-rallye-automobile-de-monte-carlo-2020'
+# rally_stub='60140-rally-sweden-2020'
 #
 # df_allInOne, df_overall, df_stages, \
 #     df_overall_pos, df_stages_pos = get_stage_times(rally_stub)
