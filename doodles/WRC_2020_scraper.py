@@ -230,14 +230,22 @@ def _parseItinerary(r):
     """Parse itinerary response."""
     itinerary = json_normalize(r.json()).drop(columns='itineraryLegs')
     legs = json_normalize(r.json(), 'itineraryLegs')
-    if not legs.empty:
+    if _notnull(legs):
         legs = legs.drop(columns='itinerarySections')
         sections = json_normalize(r.json(),
                                   ['itineraryLegs', 'itinerarySections']).drop(columns=['controls', 'stages'])
         controls = json_normalize(r.json(),
-                                  ['itineraryLegs', 'itinerarySections', 'controls'])
+                                  ['itineraryLegs', 'itinerarySections', 'controls'],
+                                  meta=[['itineraryLegs', 'itineraryLegId'],
+                                         ['itineraryLegs', 'startListId']])
+        controls.rename(columns={'itineraryLegs.itineraryLegId': 'itineraryLegId',
+                                 'itineraryLegs.startListId': 'startListId'}, inplace=True)
         stages = json_normalize(r.json(),
-                                ['itineraryLegs', 'itinerarySections', 'stages'])
+                                ['itineraryLegs', 'itinerarySections', 'stages'],
+                                meta=[['itineraryLegs', 'itineraryLegId'],
+                                         ['itineraryLegs', 'startListId']])
+        stages.rename(columns={'itineraryLegs.itineraryLegId': 'itineraryLegId',
+                               'itineraryLegs.startListId': 'startListId'}, inplace=True)
     else:
         legs = sections = controls = stages = None
     return (itinerary, legs, sections, controls, stages)
@@ -251,6 +259,7 @@ def getItinerary(sdbRallyId=None, raw=False, func=_parseItinerary):
 
     args = {"command": "getItinerary",
             "context": {"sdbRallyId": _jsInt(sdbRallyId)}}
+
     if sdbRallyId:
         extracols = {'rallyid': sdbRallyId}
     else:
@@ -270,6 +279,66 @@ def getItinerary(sdbRallyId=None, raw=False, func=_parseItinerary):
 # display(sections.head())
 # display(controls.head())
 # display(stages.head())
+# -
+
+itinerary, legs, sections, controls, stages = getItinerary()
+legs
+
+
+# + tags=["active-ipynb"]
+# legs.where(legs['status']=='Running').last_valid_index()
+# ix = legs.where(legs['status']=='Completed').last_valid_index()
+# legs.loc[ix]
+# -
+
+def getCurrentLeg(legs=None):
+    """Get the current running leg, or the next leg to run."""
+    # TO DO - need to know what the values of status are
+    
+    if _isnull(legs):
+        # TO DO - if the class calls this, the data is obtained but not returned
+        itinerary, legs, sections, controls, stages = getItinerary()
+    
+    _running = legs.where(legs['status']=='Running').last_valid_index()
+    if not _running:
+        # TO DO - need to check to run
+        _running = legs.where(legs['status']=='ToRun').last_valid_index()
+        
+    if not _running:
+        _running = legs.where(legs['status']=='Completed').last_valid_index()
+
+    if _running is not None:
+        return legs.loc[_running]
+        
+    return None
+
+
+# + tags=["active-ipynb"]
+# getCurrentLeg()
+# -
+
+def getStageDetails(stageNum, stages=None):
+    """Get stage details from stage number (eg SS1)."""
+    if _isnull(stages):
+        # TO DO - if the class calls this, the data is obtained but not returned
+        itinerary, legs, sections, controls, stages = getItinerary()
+    if isinstance(stageNum, str) and stageNum.startswith('SS'):
+        pass
+    elif _jsInt(stageNum):
+        stageNum = f'SS{stageNum}'
+    else:
+        stageNum = None
+
+    stages_idx = stages.where(stages['code']==stageNum).last_valid_index()
+    
+    if stages_idx is not None:
+        return stages.loc[stages_idx]
+
+    return None
+
+
+# + tags=["active-ipynb"]
+# getStageDetails('SS4')  # also accepts: '2', 2
 
 # +
 def _parseStartlist(r):
@@ -279,31 +348,31 @@ def _parseStartlist(r):
 
     return (startList, startListItems)
 
+def getStartlist(stage='', startListId=None, raw=False, func=_parseStartlist):
+    """Get a generic startlist."""
+    if _isnull(_jsInt(startListId)):
+        if isinstance(stage, str) and stage.lower().startswith('current'):
+            startListId = getCurrentLeg()['startListId']
+        elif stage:
+            stage_details = getStageDetails(startListId)
+            if stage_details:
+                startListId = stage_details['startListId']
+        if not startListId:
+            startListId = getCurrentLeg()['startListId']
 
-# TO DO - so can get a startlist for a not active leg?
-
-def getActiveLegStartlist(startListId, raw=False, func=_parseStartlist):
-    """Get a startlist for the active itinerary leg."""
     args = {'command': 'getStartlist',
-            'context': {'activeItineraryLeg': {'startListId': startListId}}}
+            'context': {'activeItineraryLeg': {'startListId': _jsInt(startListId)}}}
 
     return _get_and_handle_response(URL, args, func, nargs=2, raw=raw)
 
 
-def getStartlist(startListId, typ='activeleg', raw=False):
-    """Get a generic startlist."""
-    if typ == 'activeleg':
-        return getActiveLegStartlist(startListId)
-
-    return (None, None)
-
+# + tags=["active-ipynb"]
+# getStartlist('SS4')[1].head()
 
 # + tags=["active-ipynb"]
 # startListId = 451
-# getStartlist(startListId)
-
-# + tags=["active-ipynb"]
-# startList,startListItems = getActiveLegStartlist(startListId)
+#
+# startList,startListItems = getStartlist(startListId)
 # display(startList.head())
 # display(startListItems.head())
 
@@ -642,4 +711,6 @@ def getChampionshipStandings(category='WRC', typ='drivers',
 # display(championship_standings.head())
 # display(round_results.head())
 # -
+
+
 
