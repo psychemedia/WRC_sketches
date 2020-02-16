@@ -29,7 +29,7 @@
 # %flake8_on --ignore D100
 # -
 
-from pandas import DataFrame
+from pandas import DataFrame, Series
 
 
 # Should we handle open ended paths?
@@ -47,7 +47,7 @@ from pandas import DataFrame
 
 def _isnull(obj):
     """Check an object is null."""
-    if isinstance(obj, DataFrame):
+    if isinstance(obj, DataFrame) or isinstance(obj, Series):
         return obj.empty
     elif isinstance(obj, str) and obj.lower() == 'null':
         return True

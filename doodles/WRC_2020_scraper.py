@@ -358,24 +358,31 @@ def _parseStartlist(r):
 
 def getStartlistId(stage='', startListId=None, legs=None, stages=None):
     """Get a generic startListId."""
-    
+    # We essentially hack the precedence ordering
     # TO DO - we should warn from this
     # If passed something as first parameter (stage) that is actually 
+    # a startListId and we have no startListId, use _stage as startListId
     _stage = _jsInt(stage)
-    if _stage and legs and _stage in legs['startListId']:
+    if startListId is None and _stage and legs and _stage in legs['startListId']:
         startListId = _stage
 
-    if _isnull(_jsInt(startListId)):
-        if isinstance(stage, str) and stage.lower().startswith('current'):
+    # If we don't have a valid startListId, try to finesse one from stage
+    if _isnull(_jsInt(startListId)) or not (legs and _jsInt(startListId)
+                                            and _jsInt(startListId) in legs['startListId']):
+        # If the startListId is a str, is it a stage designator?
+        if isinstance(startListId, str) and startListId.startswith('SS'):
+            stage = startListId
+        if stage and isinstance(stage, str) and stage.lower().startswith('current'):
             startListId = getCurrentLeg(legs=legs)['startListId']
         elif stage:
             stage_details = getStageDetails(startListId, stages=stages)
-            if stage_details:
+            if _notnull(stage_details):
                 startListId = stage_details['startListId']
         if not startListId:
             startListId = getCurrentLeg(legs=legs)['startListId']
     return startListId
-            
+
+
 def getStartlist(stage='', startListId=None, legs=None, stages=None,
                  raw=False, func=_parseStartlist):
     """Get a generic startlist."""
@@ -389,12 +396,9 @@ def getStartlist(stage='', startListId=None, legs=None, stages=None,
 
 
 # + tags=["active-ipynb"]
-# getStartlist('SS4')[0]#[1].head()
-# getStartlist(469)[0]
-# -
-
-_jsInt(469)
-
+# #getStartlist('SS4')[0]#[1].head()
+# #getStartlist(469)[0], getStartlistId(startListId='SS4')#(startListId='SS4')
+# getStartlistId(startListId='SS3')
 
 # + tags=["active-ipynb"]
 # startListId = 451

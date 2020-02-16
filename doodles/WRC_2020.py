@@ -432,7 +432,7 @@ class WRCChampionshipStandings(WRCChampionship):
 # zz.dbtables()
 # -
 
-# TO DO  - in a clea environment, the following fails on first run. But if we run it again, it works.
+# TO DO  - in a clean environment, the following fails on first run. But if we run it again, it works.
 
 # +
 # TO DO - need a more general season events class?
@@ -780,7 +780,7 @@ class WRCStartlist(WRCItinerary):
         """Return a startlistId or look one up."""
         self._checkItinerary()
         
-        if not startListId:
+        if not startListId or not _jsInt(startListId):
             # TO DO - Should we do this?
             #self.startListId = int(self.legs.loc[0, 'startListId'])
             self.startListId = getStartlistId(startListId=startListId,
@@ -791,8 +791,7 @@ class WRCStartlist(WRCItinerary):
     def fetchStartList(self, startListId=None):
         """Get startlist data from API. Add to db if available."""
         self._checkStartListId(startListId)
-        print('in',startListId, 'self',self.startListId)
-        (startList, startListItems) = getStartlist(startListId=self.startListId)
+        (startList, startListItems) = getStartlist(startListId=startListId)
         if _notnull(startList) and _notnull(startListItems):
             self.startList, self.startListItems = startList, startListItems
             self.dbfy([('startList', ['startListId']),
@@ -806,7 +805,6 @@ class WRCStartlist(WRCItinerary):
         """Get all startlists data from API. Add to db if available."""
         self._checkItinerary()
         self.legs.apply(lambda row: self.fetchStartList(row['startListId']), axis=1)
-       
 
 
 # + tags=["active-ipynb"]
@@ -817,6 +815,8 @@ class WRCStartlist(WRCItinerary):
 # + tags=["active-ipynb"]
 # #zz.fetchStartLists()
 # #zz.startLists
+# zz.fetchStartList('SS2')
+# zz.startList
 # -
 
 class WRCCars(WRCRally_sdb):
@@ -1230,17 +1230,21 @@ class WRCEvent(WRCCars, WRCPenalties, WRCRetirements, WRCStartlist,
 
         If no startListId provided, try to use the current one.
         """
-        self.fetchStartLists()
+        self.fetchStartList(startListId)
         attrs = ['startList', 'startListItems']
         return tuple(getattr(self, a) for a in attrs)
 
     def getStartlists(self, startListId=None):
         """
         Get startlists.
-
-        If no startListId provided, try to use the current one.
         """
+        if startListId:
+            # Note that the return type from this is different to the
+            # getStartlists return type - TO DO: fix
+            return self.getStartlist(startListId)
+
         self.fetchStartLists()
+        return self.startLists
 
     def getPenalties(self):
         """Get penalties."""
@@ -1357,7 +1361,7 @@ class WRC2020(WRCActiveSeasonEvents, WRCEvent):
     
     
     
-    
+
 
 # + tags=["active-ipynb"]
 # zz = WRC2020().getActiveSeasonEvents()
