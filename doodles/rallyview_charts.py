@@ -254,7 +254,7 @@ def _rebased_pace_times(ewrc, rebase, rally_class='all'):
         if rally_class == 'all':
             _df =  ewrc.df_stages_rebased_to_stage_winner
         else:
-            _df = ewrc.get_class_rebased_times(rally_class='RC2')
+            _df = ewrc.get_class_rebased_times(rally_class=rally_class)
         rebase = None
     else:
         _df = ewrc.df_stages
@@ -845,9 +845,10 @@ def pace_map(ewrc, rebase='stage_winner',
         
     PACEMAX = PACEMAX+0.1
 
+    # TO DO - check we have a df to generate list from
     lines = dff.apply(lambda x: [(x['x0'],x['value']),(x['x1'],x['value'])],
                                       axis=1).to_list()
-    
+
     #This is part of a fudge to try to get categorical line coloring
     _entries = [True if (pd.notna(xy[0][1]) and pd.notna(xy[1][1]) 
                                 and xy[0][1] <= PACEMAX) else False for xy in lines]
@@ -959,8 +960,9 @@ def pace_map(ewrc, rebase='stage_winner',
 # ostberg = '/entryinfo/60140-rally-sweden-2020/2498361/'
 
 # + tags=["active-ipynb"]
-# pace_map(ewrc, PACEMAX=2, stretch=True, rally_class='RC2',
-#          rebase=ostberg, filename='testpng/pacemap_ostberg.png');
+# pace_map(ewrc, PACEMAX=2, stretch=True, rally_class='RC1',
+#          #rebase=ostberg, 
+#          filename='testpng/pacemap_ostberg.png');
 #
 # # TO DO  - need a 'class_winner' rebaser
 
