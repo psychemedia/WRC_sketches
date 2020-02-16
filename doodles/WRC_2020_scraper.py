@@ -358,6 +358,13 @@ def _parseStartlist(r):
 
 def getStartlistId(stage='', startListId=None, legs=None, stages=None):
     """Get a generic startListId."""
+    
+    # TO DO - we should warn from this
+    # If passed something as first parameter (stage) that is actually 
+    _stage = _jsInt(stage)
+    if _stage and legs and _stage in legs['startListId']:
+        startListId = _stage
+
     if _isnull(_jsInt(startListId)):
         if isinstance(stage, str) and stage.lower().startswith('current'):
             startListId = getCurrentLeg(legs=legs)['startListId']
@@ -382,7 +389,12 @@ def getStartlist(stage='', startListId=None, legs=None, stages=None,
 
 
 # + tags=["active-ipynb"]
-# getStartlist('SS4')[1].head()
+# getStartlist('SS4')[0]#[1].head()
+# getStartlist(469)[0]
+# -
+
+_jsInt(469)
+
 
 # + tags=["active-ipynb"]
 # startListId = 451

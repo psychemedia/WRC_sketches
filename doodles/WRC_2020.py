@@ -24,8 +24,8 @@
 # %load_ext autoreload
 # %autoreload 2
 #
-# %load_ext pycodestyle_magic
-# %flake8_on --ignore D100
+# #%load_ext pycodestyle_magic
+# #%flake8_on --ignore D100
 # -
 
 from WRC_2020_scraper import *
@@ -37,7 +37,7 @@ import uuid
 import pickle
 
 # + tags=["active-ipynb"]
-# TESTDB = 'testdbfy.db'
+# TESTDB = 'testdbfy2.db'
 # !rm $TESTDB
 # -
 
@@ -686,19 +686,32 @@ class WRCItinerary(WRCRally_sdb, WRCLive):
                    ('stages', ['stageId']),
                    ('richstages', ['stageId'])])
 
+    def getCurrentLeg(self):
+        """Get current leg details."""
+        if self.legs is None:
+            self.fetchItinerary()
+        return getCurrentLeg(legs=self.legs)
+
     def getStageIdFromCode(self, code=None):
         """Return a stageID from a single codes."""
+        # Accept: 'SS1', '1', 1
+        if _jsInt(code):
+            code = f'SS{code}'
+
         if code and isinstance(code, str) and _checkattr(self, 'stages'):
             _df = self.stages[self.stages['code'] == code][['rallyid', 'stageId']]
             return tuple(_df.iloc[0])
         elif code and isinstance(code, list):
-            # TO DO - this might be dangerous if we are expencting a single tuple response
-            getStageIdsFromCode(code, response='tuples')
+            # TO DO - this might be dangerous if we are expecting a single tuple response
+            return getStageIdsFromCode(code, response='tuples')
 
-    def getStageIdsFromCode(self, code=None, response='dict'):
+    def getStageIdsFromCode(self, codes=None, response='dict'):
         """Return a stageID from one or more codes."""
-        if code and _checkattr(self, 'stages'):
-            _df = self.stages[self.stages['code'].isin(listify(code))][['code', 'rallyid', 'stageId']]
+        # TO DO: this should really run through getStageIdFromCode()
+        codes = [f'SS{_jsInt(c)}' if _jsInt(c) else c for c in listify(codes)]
+        
+        if codes and _checkattr(self, 'stages'):
+            _df = self.stages[self.stages['code'].isin(codes)][['code', 'rallyid', 'stageId']]
             if response == 'df':
                 return _df
             elif response == 'tuples':
@@ -726,7 +739,6 @@ class WRCItinerary(WRCRally_sdb, WRCLive):
             return _df.set_index('code').to_dict(orient='index')
 
 
-
 # + tags=["active-ipynb"]
 # sdbRallyId = 100
 # zz = WRCItinerary(sdbRallyId, autoseed=True, dbname=TESTDB)
@@ -739,6 +751,8 @@ class WRCItinerary(WRCRally_sdb, WRCLive):
 # + tags=["active-ipynb"]
 # WRCItinerary(sdbRallyId=100).legs
 # -
+
+# Each leg has a startlist.
 
 class WRCStartlist(WRCItinerary):
     """Class for WRC2020 Startlist table."""
@@ -753,6 +767,8 @@ class WRCStartlist(WRCItinerary):
 
         self.startList = None
         self.startListItems = None
+        
+        self.startLists = {}
 
         if not nowarn and not self.startListId:
             warnings.warn("startListId should really be set..")
@@ -763,24 +779,44 @@ class WRCStartlist(WRCItinerary):
     def _checkStartListId(self, startListId=None):
         """Return a startlistId or look one up."""
         self._checkItinerary()
-        self.startListId = _jsInt(startListId or self.startListId)
-
-        if not self.startListId:
-            self.startListId = int(self.legs.loc[0, 'startListId'])
+        
+        if not startListId:
+            # TO DO - Should we do this?
+            #self.startListId = int(self.legs.loc[0, 'startListId'])
+            self.startListId = getStartlistId(startListId=startListId,
+                                              legs=self.legs, stages=self.stages)
+        else:
+            self.startListId = _jsInt(startListId or self.startListId)
 
     def fetchStartList(self, startListId=None):
         """Get startlist data from API. Add to db if available."""
         self._checkStartListId(startListId)
-        (startList, startListItems) = getStartlist(self.startListId)
-        self.startList, self.startListItems = startList, startListItems
-        self.dbfy([('startList', ['startListId']),
-                   ('startListItems', ['startListItemId'])])
+        print('in',startListId, 'self',self.startListId)
+        (startList, startListItems) = getStartlist(startListId=self.startListId)
+        if _notnull(startList) and _notnull(startListItems):
+            self.startList, self.startListItems = startList, startListItems
+            self.dbfy([('startList', ['startListId']),
+                       ('startListItems', ['startListItemId'])])
+            if not startListId:
+                startListId = startList['startListId'].iloc[0]
+            if startListId not in self.startLists:
+                self.startLists[startListId] = startListItems
+        
+    def fetchStartLists(self):
+        """Get all startlists data from API. Add to db if available."""
+        self._checkItinerary()
+        self.legs.apply(lambda row: self.fetchStartList(row['startListId']), axis=1)
+       
 
 
 # + tags=["active-ipynb"]
 # zz = WRCStartlist()  # (autoseed=True, dbname=TESTDB)
 # # zz.fetchStartList()
-# zz.startListId
+# zz.startListId#, zz.startListItems
+
+# + tags=["active-ipynb"]
+# #zz.fetchStartLists()
+# #zz.startLists
 # -
 
 class WRCCars(WRCRally_sdb):
@@ -983,7 +1019,7 @@ class WRCOverall(WRCRallyStage):
 
     def __repr__(self):
         """Overall class serialisation."""
-        return f'Overall for stageIds: {", ".join([str(k) for k in zz.overall.keys()])}'
+        return f'Overall for stageIds: {", ".join([str(k) for k in self.overall.keys()])}'
 
 
 # + tags=["active-ipynb"]
@@ -1192,11 +1228,19 @@ class WRCEvent(WRCCars, WRCPenalties, WRCRetirements, WRCStartlist,
         """
         Get startlist.
 
-        If no startListId provided, try to find a default.
+        If no startListId provided, try to use the current one.
         """
-        self.fetchStartList()
+        self.fetchStartLists()
         attrs = ['startList', 'startListItems']
         return tuple(getattr(self, a) for a in attrs)
+
+    def getStartlists(self, startListId=None):
+        """
+        Get startlists.
+
+        If no startListId provided, try to use the current one.
+        """
+        self.fetchStartLists()
 
     def getPenalties(self):
         """Get penalties."""
@@ -1244,6 +1288,9 @@ class WRCEvent(WRCCars, WRCPenalties, WRCRetirements, WRCStartlist,
 
         self.fetchSplitTimes(self.sdbRallyId, stageId)
 
+        # TO DO - if we have provided stageId, just return that
+        # TO DO - need to allow user to enter "natural" stageID eg SS1
+        # TO DO - call this a stageCode or stageNum?
         return (self.splitPoints, self.entrySplitPointTimes,
                 self.splitPointTimes)
 
