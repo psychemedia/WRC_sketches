@@ -320,6 +320,7 @@ def getCurrentLeg(legs=None):
     return None
 
 
+
 # + tags=["active-ipynb"]
 # getCurrentLeg()
 # -
@@ -355,17 +356,24 @@ def _parseStartlist(r):
 
     return (startList, startListItems)
 
-def getStartlist(stage='', startListId=None, raw=False, func=_parseStartlist):
-    """Get a generic startlist."""
+def getStartlistId(stage='', startListId=None, legs=None, stages=None):
+    """Get a generic startListId."""
     if _isnull(_jsInt(startListId)):
         if isinstance(stage, str) and stage.lower().startswith('current'):
-            startListId = getCurrentLeg()['startListId']
+            startListId = getCurrentLeg(legs=legs)['startListId']
         elif stage:
-            stage_details = getStageDetails(startListId)
+            stage_details = getStageDetails(startListId, stages=stages)
             if stage_details:
                 startListId = stage_details['startListId']
         if not startListId:
-            startListId = getCurrentLeg()['startListId']
+            startListId = getCurrentLeg(legs=legs)['startListId']
+    return startListId
+            
+def getStartlist(stage='', startListId=None, legs=None, stages=None,
+                 raw=False, func=_parseStartlist):
+    """Get a generic startlist."""
+    startListId = getStartlistId(stage=stage, startListId=startListId,
+                                 legs=legs, stages=stages)
 
     args = {'command': 'getStartlist',
             'context': {'activeItineraryLeg': {'startListId': _jsInt(startListId)}}}
