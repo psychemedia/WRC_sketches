@@ -23,7 +23,8 @@
 # + tags=["active-ipynb"]
 # %load_ext autoreload
 # %autoreload 2
-#
+
+# + tags=["active-ipynb"]
 # %load_ext pycodestyle_magic
 # %flake8_on --ignore D100
 # -
@@ -172,6 +173,9 @@ def getActiveRally(_url=None, raw=False, func=_parseActiveRally):
 # display(channels.head())
 # display(event.columns)
 
+# + tags=["active-ipynb"]
+# event.loc[0].to_dict()
+
 # +
 # Raw https://webappsdata.wrc.com/srv API?
 # Need to create separate package to query that API
@@ -219,6 +223,9 @@ def getActiveSeasonEvents(raw=False, func=_parseActiveSeasonEvents):
 # display(eventchannel.head())
 # display(current_season_events.columns)
 # eventchannel.columns
+
+# + tags=["active-ipynb"]
+# current_season_events.iloc[0].to_dict()
 # -
 
 # ## getItinerary
@@ -452,10 +459,13 @@ def _parseSplitTimes(r):
     splitPoints = json_normalize(r.json(), 'splitPoints')
     entrySplitPointTimes = json_normalize(r.json(),
                                           'entrySplitPointTimes',
-                                          meta='stageId').drop(columns='splitPointTimes')
+                                          meta='stageId')
     splitPointTimes = json_normalize(r.json(),
                                      ['entrySplitPointTimes', 'splitPointTimes'],
                                      meta='stageId')
+    if _notNull(splitPointTimes):
+        entrySplitPointTimes.drop(columns='splitPointTimes', inplace=True)
+
     return (splitPoints, entrySplitPointTimes, splitPointTimes)
 
 
@@ -666,6 +676,9 @@ def getChampionship(category='WRC', typ='drivers', season_external_id=None,
 
     return _get_and_handle_response(SEASON_URL, args, func,
                                     nargs=3, raw=raw)
+
+    # to do - championship table decodes cols in other tables
+                                                
 
 
 # + tags=["active-ipynb"]
