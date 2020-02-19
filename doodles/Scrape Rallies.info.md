@@ -4,8 +4,8 @@ jupyter:
     text_representation:
       extension: .md
       format_name: markdown
-      format_version: '1.0'
-      jupytext_version: 0.8.6
+      format_version: '1.1'
+      jupytext_version: 1.2.1
   kernelspec:
     display_name: Python 3
     language: python
@@ -26,13 +26,28 @@ Additional information about entries is also available from the entry list table
 import pandas as pd
 ```
 
+## Entry List
+
+The entry list provides the name of the  car number, driver and co-driver, car type, engine size, class, club and entrant/sponsor name.
+
 ```python
 entry_list_url = 'https://www.rallies.info/res.php?e=296&o=p&t=999&r=e&n=999999&i=300'
+entry_list_url = 'https://www.rallies.info/res.php?e=305&o=p&t=999&r=e&n=999999&i=300'
+
 pd.read_html(entry_list_url)[0][:-1]
 ```
 
+Three Shires - multiple loops:
+
+- first loop:  https://rallies.info/res.php?e=305&o=p&t=21&r=s&i=300&n=999999
+- second loop: https://rallies.info/res.php?e=305&o=p&t=43&r=s&i=300&n=999999
+- third loop:  https://rallies.info/res.php?e=305&o=p&t=65&r=s&i=300&n=999999
+
+The `t=` parameter seems to be the one to set. Can we get more about this from an itinerary?
+
 ```python
 stage_times_url = 'https://www.rallies.info/res.php?e=296'
+stage_times_url = 'https://www.rallies.info/res.php?e=305'
 ```
 
 ```python
@@ -53,8 +68,17 @@ df.columns
 df[[str(i) for i in range(1,13)]+['Penalty','Total']].applymap(getTime2)
 ```
 
+A table on each loop page provides information about the stage name / sponsor. (A better scraper is really required.)
+
 ```python
-pd.read_html(url)[2]
+pd.read_html('https://rallies.info/res.php?e=305&o=p&t=65&r=s&i=300&n=999999')[2]
+```
+
+```python
+#https://github.com/r1chardj0n3s/parse
+from parse import parse
+p = parse("Stage {:d}{} {:f} miles", "Stage 13SVP Motorsport 31.47 miles")
+p[0], p[1], p[2]
 ```
 
 ```python
