@@ -2,3 +2,7 @@
 .ipynb_checkpoints
 .DS_Store
 doodles/report/*
+doodles/testpng/*
+doodles/times/raw/
+*.pickle
+*.db
