@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.3.1
+#       jupytext_version: 1.4.2
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -40,6 +40,7 @@ num_cores = cpu_count()
 
 #https://towardsdatascience.com/how-i-learned-to-love-parallelized-applies-with-python-pandas-dask-and-numba-f06b0b367138
 # #!pip3 install dask
+# #!pip3 install --upgrade  "dask[dataframe]"
 # #!pip3 install cloudpickle
 from dask import dataframe as dd
 
@@ -162,12 +163,21 @@ def _positionStep(Xtmpq, typ, items=None):
 # -
 
 ## gapBar looks simple? From wo: wo = __import__("WRC Overall")
-def gapBar(df):
+def gapBar(df, column_signature_start='SS_', column_signature_end='_overall', colname='Gap'):
     ''' Bar chart showing rebased gap at each stage. '''
-    col='Gap'
-    df[col] = df[[c for c in df.columns if c.startswith('SS_') and c.endswith('_overall')]].values.tolist()
-    df[col] = df[col].apply(lambda x: [-y for y in x])
-    df[col] = df[col].apply(sparkline2, typ='bar', dot=False)
+
+    df[colname] = df[[c for c in df.columns if c.startswith(column_signature_start) and c.endswith(column_signature_end)]].values.tolist()
+    df[colname] = df[colname].apply(lambda x: [-y for y in x])
+    df[colname] = df[colname].apply(sparkline2, typ='bar', dot=False)
+    return df
+
+
+def rankLine(df, column_signature_start='SS_', column_signature_end='_overall', colname='Gap', asc=False):
+    ''' Bar chart showing rebased gap at each stage. '''
+
+    df[colname] = df[[c for c in df.columns if c.startswith(column_signature_start) and c.endswith(column_signature_end)]].rank(ascending=asc).values.tolist()
+    df[colname] = df[colname].apply(lambda x: [-y for y in x])
+    df[colname] = df[colname].apply(sparklineStep)
     return df
 
 
@@ -180,6 +190,7 @@ def gapBar(df):
 # rally_stub='59972-rallye-automobile-de-monte-carlo-2020'
 # rally_stub='60500-visit-conwy-cambrian-rally-2020/'
 # rally_stub = '60140-rally-sweden-2020'
+# rally_stub = '/61496-grossi-toidukaubad-viru-rally-2020'
 # ewrc=EWRC(rally_stub)
 
 # + tags=["active-ipynb"]
@@ -238,8 +249,9 @@ def stageDist(ewrc, stage, expand=False, from_next=False):
 # also in EWRC class as df_inclass_cars
 def _inclass_cars(ewrc, _df, rally_class='all', typ='entryId'):
     """Get cars in particular class."""
+    #display(ewrc.carsInClass(rally_class, typ=typ))
     if rally_class != 'all':
-        _df = _df[_df.index.isin(ewrc.carsInClass(rally_class, typ=typ))]
+        _df = _df.loc[_df.index.isin(ewrc.carsInClass(rally_class, typ=typ))]
     return _df
 
 
@@ -258,36 +270,53 @@ def _rebased_pace_times(ewrc, rebase, rally_class='all'):
         rebase = None
     else:
         _df = ewrc.df_stages
-        
+
     _df = _inclass_cars(ewrc, _df, rally_class=rally_class, typ='entryId')
 
+    #display(_df.shape)
     _times = _df.apply(_rebaseTimes, bib=rebase, axis=0)
+
     _distances = ewrc.stage_distances
-    
-    # This correctly does the division based on index, but if we have cancelled stages
-    # our indexes are currently mixed up. Some include the cancelled stage, others don't.
-    _df = (_times / _distances[:len(_times)] ).round(3)
-    
-        
+    #display(_distances)
+    # TO DO - this doesn't necessarily handled cancelled stages properly and may scale incorrect stages
+    #_df = (_times / _distances[:len(_times)] ).round(3)
+    _df = (_times / _distances ).round(3)
+
     return _df, rebase
     
 def paceReport(ewrc, rebase=None, show=False, rally_class='all'):
     ''' Time gained / lost per km on a stage. '''
 
+    if not ewrc:
+        return
+
     ewrc.set_rebased_times()
     ewrc.get_itinerary()
-        
+    
     _df, rebase = _rebased_pace_times(ewrc, rebase, rally_class=rally_class)
     if show:
         display(_df)
         display(rebase)
-    
-    return _df.dropna(how='all', axis=1)
+    #display(f'a {_df.shape}')
+    #display(_df)
+    _df =  _df.dropna(how='all', axis=1)
+    #display(f'b {_df.shape}')
+    return _df
  
 
 
 # + tags=["active-ipynb"]
-# paceReport(ewrc, rally_class='RC1')
+# dir(ewrc)
+# ewrc.df_overall_rebased_to_leader
+# _df = ewrc.df_stages_rebased_to_overall_leader
+# rally_class='all'
+# _df = _inclass_cars(ewrc, _df, rally_class=rally_class, typ='entryId')
+# _times = _df.apply(_rebaseTimes, bib=None, axis=0)
+# _distances = ewrc.stage_distances
+# _times / _distances[:len(_times)].round(3)
+
+# + tags=["active-ipynb"]
+# paceReport(ewrc, show=True, rally_class='RC1')
 
 # + tags=["active-ipynb"]
 # paceReport(ewrc, rebase='stage_winner').head(10)
@@ -311,6 +340,9 @@ def requiredStagePace(ewrc, stage, rebase=None, target_stage=None):
         Report as the number of seconds required per km,
         but not as a speed unless we have a target speed.
     '''
+    if not ewrc:
+        return
+
     ewrc.set_rebased_times()
     ewrc.get_itinerary()
     
@@ -335,7 +367,9 @@ def requiredPace(ewrc, rebase=None, within=None):
         We can report this as the number of seconds required per km,
         but not as a speed unless we have a target speed.
     '''
-    
+    if not ewrc:
+        return
+
     ewrc.set_rebased_times()
     ewrc.get_itinerary()
     
@@ -371,9 +405,13 @@ def requiredPace(ewrc, rebase=None, within=None):
 
 # ## Reporter
 
+# +
+# TO DO - we need to be able to generate reports for class or championships
+# At the moment, we only generate by class?
+# -
 
-
-def rally_report(ewrc, rebase, codes=None):
+def rally_report(ewrc, rebase, codes=None, rally_class=None, rally_championship=None,
+                 postfilter=None):
     ''' Generate a rally report.
         rebase: rebase times to a specified car or position:
             - overall_leader
@@ -386,13 +424,30 @@ def rally_report(ewrc, rebase, codes=None):
     
     #The codes let us filter  - should filter in this function really?
     
+    # The stage times are a complete list but we may want to filter on a subset of them
+    # For example, by class or by championship
+    # BUT we may also want to calculate things relatve to global not just in class/championship?
     df_allInOne, df_overall, df_stages, df_overall_pos = ewrc.get_stage_times()
+    # IF we are just looking within a class / championship, we should filter these values by the class/championship entry
+    
     
     #codes provides the order and is taken from the stage order
-    if codes is None or codes=='All':
-        codes = pd.DataFrame(df_stages.index.tolist()).rename(columns={0:'entryId'}).set_index('entryId')
+    #if codes is None or codes=='All':
+    #print(codes)
+    if codes:
+        _codes = list(set(codes).intersection(set(ewrc.df_entry_list['driverEntry'].to_list())))
     else:
-        codes = [codes] if isinstance(codes,str) else codes
+        _codes = []
+    #print('codes',codes, '_codes',_codes)
+    if codes=='All':
+        codes = pd.DataFrame(df_stages.index.tolist()).rename(columns={0:'entryId'}).set_index('entryId')
+    elif _codes:
+        codes = pd.DataFrame(_codes).rename(columns={0:'entryId'}).set_index('entryId')
+    else:
+        if not codes:
+            codes=[]
+        else:
+            codes = [codes] if isinstance(codes,str) else codes
         #Allowable codes
         _codes = set(df_allInOne.index.tolist())
         carNums=[]
@@ -403,7 +458,9 @@ def rally_report(ewrc, rebase, codes=None):
         #  but seems to cause an error further on...
         #carNums = carNums + df_allInOne.loc[set(codes).intersection(_codes)].index.tolist() 
         codes = pd.DataFrame(carNums).rename(columns={0:'entryId'}).set_index('entryId')
+        
     
+    #print('ffs', codes)
     xcols = df_overall.columns
     
     #rebase is the index value
@@ -438,11 +495,15 @@ def rally_report(ewrc, rebase, codes=None):
     #The overall times need rebasing to the overall leader at each stage
     #leaderTimes = df_overall.min()#iloc[0]
     #df_overall_rebased_to_leader = df_overall[xcols].apply(_rebaseTimes, basetimes=leaderTimes, axis=1)
-    df_overall_rebased_to_leader = ewrc.df_overall_rebased_to_leader
-
-    tmp = pd.merge(tmp,_gapToLeaderBar(-df_overall_rebased_to_leader[xcols][:(overall_idx+1)],
-                                       'overall', False, False, codes),
-                   left_index=True, right_index=True)
+    # TO DO - what if we are looking at a class or championship?
+    # Rebase then needs to take what "overall" we mean?
+    try:
+        df_overall_rebased_to_leader = ewrc.df_overall_rebased_to_leader
+        tmp = pd.merge(tmp,_gapToLeaderBar(-df_overall_rebased_to_leader[xcols][:(overall_idx+1)],
+                                   'overall', False, False, codes),
+               left_index=True, right_index=True)
+    except:
+        pass
     #print(tmp[-1:].index)
     #overallPosition: step line chart showing evolution of overall position
     
@@ -461,20 +522,21 @@ def rally_report(ewrc, rebase, codes=None):
     #df_stages_rebased_to_overall_leader = df_stages[xcols].apply(_rebaseTimes, basetimes=leaderStagetimes, axis=1)
     #Now rebase to the stage winner
     #df_stages_rebased_to_stage_winner = df_stages_rebased_to_overall_leader[xcols].apply(_rebaseTimes, basetimes=df_stages_rebased_to_overall_leader.min(), axis=1)
-    df_stages_rebased_to_stage_winner = ewrc.df_stages_rebased_to_stage_winner
+    try:
+        df_stages_rebased_to_stage_winner = ewrc.df_stages_rebased_to_stage_winner
     
-    #The gapToLeaderBar needs to return the gap to the stage winner
-    tmp = pd.merge(tmp,_gapToLeaderBar(-df_stages_rebased_to_stage_winner[xcols][:(overall_idx+1)], 'stages', False, False, codes),
-                   left_index=True, right_index=True)
-    #In the preview the SS_N_stages bars are wrong because we have not rebased yet
-    tmp.rename(columns={'stagesGapToLeader':'stageWinnerGap'},inplace=True)
-
+        #The gapToLeaderBar needs to return the gap to the stage winner
+        tmp = pd.merge(tmp,_gapToLeaderBar(-df_stages_rebased_to_stage_winner[xcols][:(overall_idx+1)], 'stages', False, False, codes),
+               left_index=True, right_index=True)
+        #In the preview the SS_N_stages bars are wrong because we have not rebased yet
+        tmp.rename(columns={'stagesGapToLeader':'stageWinnerGap'},inplace=True)
+    except:
+        pass
     # stagePosition: step chart showing stage positions
     df_stages_pos = df_stages.rank(method='min')
     df_stages_pos.columns = range(1,df_stages_pos.shape[1]+1)
-    
     xx=_positionStep(df_stages_pos[xcols][:(overall_idx+1)],
-                     'stages', codes)['stagesPosition']
+                 'stages', codes)['stagesPosition']
     tmp = pd.merge(tmp, xx, left_index=True, right_index=True)
 
     #Rebase
@@ -505,6 +567,9 @@ def rally_report(ewrc, rebase, codes=None):
                        how='left', left_index=True, right_index=True)
         moveColumn(tmp, 'Pos', right_of='overallGapToLeader')
         moveColumn(tmp, 'Class', pos=0)
+    except:
+        pass
+    try:
         #print('x',tmp[-1:].index)
         #tmp = pd.merge(tmp, df_rally_overall[['CarNum','Class Rank']], how='left', left_index=True, right_index=True)
         tmp = pd.merge(tmp, df_rally_overall[['Class Rank']],
@@ -522,6 +587,45 @@ def rally_report(ewrc, rebase, codes=None):
                    how='left', left_index=True, right_index=True )
     moveColumn(tmp, 'driverNav', pos=1)
     moveColumn(tmp, 'carModel', pos=2)
+    
+    if postfilter:
+        tmp=tmp[tmp.index.isin(postfilter)]
+        
+        # Now calculate the overallPosition, overallGap, stagePosition and stageWinner gap relative to this population
+        # TO DO
+        # This can be calculated based on rank and deltas in the actual SS_Overall and SS_Stages data
+
+        tmp = gapBar(tmp, colname='Gap')
+        tmp = rankLine(tmp, colname='overallPosition')
+        tmp = gapBar(tmp, column_signature_end='_stages', colname='stageWinnerGap')
+        tmp = rankLine(tmp, column_signature_end='_stages', colname='stagesPosition')
+        
+        # TO DO - overallGapToLeader - this is the delta of accumulated to min acculumulated time in column
+        # Grab the overall times
+        tmp = pd.merge(tmp, df_overall, left_index=True, right_index=True, how='left')
+        icols = []
+        tmpcols =[]
+        for c in tmp.columns:
+            if isinstance(c, int):
+                icols.append(f'SS_{str(c)}_tmp')
+                tmpcols.append(f'SS_{str(c)}_tmp')
+            else:
+                icols.append(c)
+        tmp.columns=icols
+        #Find the difference to the min accumulated time
+        tmp[tmpcols] = tmp[tmpcols]-tmp[tmpcols].min()
+        tmp = gapBar(tmp, colname='overallGapToLeader', column_signature_end='_tmp')
+        tmp.drop(columns=tmpcols, inplace=True)
+        #Now we need to grab that into one cell and chart it
+        # TO DO
+        #tmp.columns = [str(c) for c in tmp.columns]
+        #tmp['dsds'] = tmp[[c for c in tmp.columns if c.endswith('_stages')]].rank().apply(sparklineStep)
+
+    # TO DO - do we need class diagrams if we aren't in postfilter?
+    
+    #Rounding to 1dp
+    #ss_cols = [c for c in tmp.columns if c.startswith('SS')]
+    #tmp[ss_cols] = tmp[ss_cols].map('{:.2f}'.format)
     #is this the slow bit?
     #print('styling...')
     s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
@@ -530,13 +634,28 @@ def rally_report(ewrc, rebase, codes=None):
 
 
 # + tags=["active-ipynb"]
-# aa='/entryinfo/59972-rallye-automobile-de-monte-carlo-2020/2465687/'
+# wREBASE='/entryinfo/61496-grossi-toidukaubad-viru-rally-2020/2702011/'
+
+# + tags=["active-ipynb"]
+# tmp, s2 = rally_report(ewrc, wREBASE, codes=['/entryinfo/61496-grossi-toidukaubad-viru-rally-2020/2721397/', '/entryinfo/61496-grossi-toidukaubad-viru-rally-2020/2702011/'])#codes='EMV1') #codes='all'
+# display(HTML(s2))
+# -
+
+
+
+
+
+# + tags=["active-ipynb"]
+# aa='/entryinfo/61496-grossi-toidukaubad-viru-rally-2020/2702011'
 # ewrc.df_overall_rebased_to_leader.loc[aa]
 
 # +
 # TO DO
 # pace to stage winner  - bar chart cf. Gap
 # call it: stagePace
+# -
+
+
 
 # + tags=["active-ipynb"]
 # ewrc=EWRC(rally_stub, live=True)
@@ -569,9 +688,14 @@ from IPython.display import HTML
 # +
 from IPython.display import Image
 
-def rally_report2(ewrc, cl, carNum):
+# TO DO - we should be able to pass in a car number and a list of carnumbers we want to report against
+# At the moment, I think cl tries to identify a class?
+def rally_report2(ewrc, cl=None, carNum=None, rally_class=None, rally_championship=None, postfilter=None):
     #rebase = df_rally_overall[df_rally_overall['CarNum']==carNum].index[0]
     #carNums = df_rally_overall[df_rally_overall['CarNum'].isin(ewrc.carsInClass(cl))].index.tolist()
+    print('cl',cl,'carNum', carNum)
+    if not ewrc:
+        return
     
     ewrc.get_stage_times()
     
@@ -582,7 +706,7 @@ def rally_report2(ewrc, cl, carNum):
     #codes = pd.DataFrame(carNums).rename(columns={0:'entryId'}).set_index('entryId')
 
     #print(codes[-1:])
-    tmp, s2 = rally_report(ewrc, rebase, codes = cl)
+    tmp, s2 = rally_report(ewrc, rebase, codes = cl, rally_class=rally_class, rally_championship=rally_championship, postfilter=postfilter)
     
     #display(HTML(s2))
     #rally_logo='<img width="100%" src="/Users/tonyhirst/Documents/GitHub/WRC_sketches/doodles/images/CSRTC-Logo-Banner-2019-01-1920x600-e1527255159629.jpg"/>'
@@ -592,8 +716,16 @@ def rally_report2(ewrc, cl, carNum):
     #bottom_logos='<div>'+rallydj_logo+datasrc_logo+'</div>'
     footer='<div style="margin-top:50px;margin-bottom:20px">Results and timing data sourced from <em>ewrc-results.com</em>. Chart generated by <em>rallydatajunkie.com</em>.</div>'
     #footer1=bottom_logos
-    inclass='' if cl=='All' else ' (Class {})'.format(cl)
-    title='<div><h1>Overall Results'+inclass+'</h1><p>Times rebased relative to car {}.</p></div>'.format(carNum)
+    extras = []
+    if rally_championship is not None:
+        extras.append(f'{rally_championship}')
+    if cl!='All' and cl:
+        extras.append(f'Class {cl}')
+    if rally_class is not None:
+        extras.append(f'Class {rally_class}')
+
+    extras = f" ({', '.join(extras)})" if extras else ''
+    title='<div><h1>Overall Results'+extras+'</h1><p>Times rebased relative to car {}.</p></div>'.format(carNum)
     
     html='<div style="font-family:sans-serif;margin-top:10px;margin-bottom:10px"><div style="margin-top:10px;margin-bottom:50px;">'+rally_logo+'</div>'
     html = html+'<div style="margin-left:20px;margin-right:20px;">'+title+s2+'</div>'+footer+'</div>'
@@ -819,10 +951,16 @@ def pace_map(ewrc, rebase='stage_winner',
         return dff
 
     
+    if not ewrc:
+        return
+
     if title is None:
         title = f'Pace Report rebased to {rebase}'
-        
+    
     df = paceReport(ewrc, rebase=rebase, rally_class=rally_class)
+    #print(rebase)
+    #print(rally_class)
+    #display(df)
     
     if stretch:
         xy = [_ for _ in zip(ewrc.stage_distances.cumsum().shift(fill_value=0).round(2), 
@@ -831,7 +969,10 @@ def pace_map(ewrc, rebase='stage_winner',
         xy = [_ for _ in zip(range(ewrc.stage_distances.size),range(1,ewrc.stage_distances.size+1))]
 
     dff = _pace_df(df)
+    if dff.empty:
+        return
     
+    #display(dff)
     
     #Need to tweak the whole chart to be able to show not run stages
     if drop:
@@ -839,7 +980,7 @@ def pace_map(ewrc, rebase='stage_winner',
         
     _ymin = 0
 
-    # Set pacemax to be at list the min gap
+    # Set pacemax to be at least the min gap
     if PACEMAX < dff['value'].min():
         PACEMAX = dff['value'].min() * 1.5
         
@@ -951,6 +1092,7 @@ def pace_map(ewrc, rebase='stage_winner',
         
     return ax
 
+
 # + tags=["active-ipynb"]
 # xy
 
@@ -1020,14 +1162,12 @@ def pace_map(ewrc, rebase='stage_winner',
 # rebase = ewrc.df_allInOne.index.values[1]
 # #pilot = 'Evans'
 # rebase=None
-# -
-
-
-
 # + run_control={"marked": false}
 def off_the_pace_chart(ewrc, rally_class='all',
                        stretch=True, figsize=(16,6), rebase=None,
                        filename=None, size=5):
+    if not ewrc:
+        return
 
     ewrc.get_itinerary()
 
@@ -1036,8 +1176,15 @@ def off_the_pace_chart(ewrc, rally_class='all',
 
     if rebase:
         dff = ewrc.df_stages
+        #If size if too small, we get an error
+        _size = dff.index.get_loc(rebase)
+        if size < _size:
+            size =_size + 1
         dff = _inclass_cars(ewrc, dff, rally_class).head(size)
         dff.apply(_rebaseTimes, bib=rebase, axis=0)
+        # TO DO - sould we get rid of this escape or properly handly reason why?
+        if dff.empty:
+            return
         #Need to now subtract that driver's times
         dff = dff - dff.loc[rebase]
         pilot = rebase
@@ -1107,10 +1254,12 @@ def off_the_pace_chart(ewrc, rally_class='all',
             ax.plot(xy[_y-1][1], dff_cumsumT.iloc[_y-1][winner_stage[_y-1][0]],
                     marker='D', markersize=2, c='red')
 
+    if pilot in ewrc.carFromEntry:
+        pilotname = ewrc.driverNumFromEntry[pilot]
+    else: pilotname = pilot
 
-
-    plt.title(f'Off the ultimate pace chart (summed delta relative to {pilot})', pad=25)
-    ax.set_ylabel(f"Off the summed stagetime pace relative to {pilot} (s)")
+    plt.title(f'Off the ultimate pace chart (summed delta relative to {pilotname})', pad=25)
+    ax.set_ylabel(f"Off the summed stagetime pace relative to {pilotname} (s)")
 
     #x-axis integers: https://stackoverflow.com/a/38096332/454773
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
