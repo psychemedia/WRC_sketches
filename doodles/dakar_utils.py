@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.3.1
+#       jupytext_version: 1.6.0
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -68,6 +68,11 @@ def _get_col_loc(df, col=None, pos=None, left_of=None, right_of=None):
 
 def moveColumn(df, col, pos=None, left_of=None, right_of=None):
     ''' Move dataframe column adjacent to a specified column. '''
+    
+    # TO DO - should log an error?
+    for c in [col, left_of, right_of]:
+        if c is not None and c not in df:
+            return df
     pos = _get_col_loc(df, None, pos, left_of, right_of)
     
     data = df[col].tolist()
@@ -165,6 +170,8 @@ def sparklineStep(data, figsize=(2, 0.5), dot=False, **kwags):
     plt.axhspan(-1, -3, facecolor='lightgrey', alpha=0.5)
     #ax.plot(range(len(data)), [-3]*len(data), linestyle=':', color='lightgrey')
     #ax.plot(range(len(data)), [-1]*len(data), linestyle=':', color='lightgrey')
+    if not isinstance(data, list):
+        return ''
     ax.plot(range(len(data)), [-10]*len(data), linestyle=':', color='lightgrey')
     ax.step(range(len(data)), data, where='mid')
 
@@ -229,7 +236,7 @@ def color_negative(val):
     return 'color: %s' % color
 
 
-def moreStyleDriverSplitReportBaseDataframe(rb2, ss, caption=None):
+def moreStyleDriverSplitReportBaseDataframe(rb2, ss, caption=None, precision=1):
     ''' Style the driver split report dataframe. '''
     
     if rb2.empty: return ''
@@ -268,25 +275,30 @@ def moreStyleDriverSplitReportBaseDataframe(rb2, ss, caption=None):
     #The blue palette helps us scale the Road Position column
     # This may help us to help identify any obvious road position effect when sorting stage times by stage rank
     cm=sns.light_palette((210, 90, 60), input="husl",as_cmap=True)
-    s2=(rb2.style
-        .background_gradient(cmap=cm, subset=_subsetter(rb2.columns, ['Road Position', 'Pos','Overall Position', 'Previous Overall Position', 'Class Rank']))
-        .applymap(color_negative,
-                  subset=[c for c in rb2.columns if rb2[c].dtype==float and (not c.startswith('D') and c not in ['Overall Position','Overall Gap','Road Position', 'Pos', 'Class Rank', 'Penalty'])])
-        .highlight_min(subset=_subsetter(rb2.columns, ['Overall Position','Previous Overall Position']), color='lightgrey')
-        .highlight_max(subset=_subsetter(rb2.columns, ['Overall Time', 'Overall Gap']), color='lightgrey')
-        .highlight_max(subset=_subsetter(rb2.columns, ['Previous']), color='lightgrey')
-        .apply(bg_color,subset=_subsetter(rb2.columns, ['{} Overall'.format(ss), 'Overall Time','Overall Gap', 'Previous', 'Stage Overall', 'Penalty']))
-        .bar(subset=[c for c in rb2.columns if str(c).startswith('D')], align='zero', color=[ '#5fba7d','#d65f5f'])
-        .bar(subset=[c for c in rb2.columns if str(c).startswith('SS') and not str(c).endswith('_overall')], align='zero', color=[ '#5fba7d','#d65f5f'])
-        .set_table_styles(styles)
-        #.format({'total_amt_usd_pct_diff': "{:.2%}"})
-       )
+    #ss_cols = [c for c in rb2.columns if c.startswith('SS')]
+    #rb2[ss_cols] = rb2[ss_cols].style.format("{:.2f}")
     
-    if caption is not None:
-        s2.set_caption(caption)
+    #https://pandas.pydata.org/pandas-docs/stable/user_guide/style.html#Precision
+    with pd.option_context('display.precision', precision):
+        s2=(rb2.style
+            .background_gradient(cmap=cm, subset=_subsetter(rb2.columns, ['Road Position', 'Pos','Overall Position', 'Previous Overall Position', 'Class Rank']))
+            .applymap(color_negative,
+                      subset=[c for c in rb2.columns if rb2[c].dtype==float and (not c.startswith('D') and c not in ['Overall Position','Overall Gap','Road Position', 'Pos', 'Class Rank', 'Penalty'])])
+            .highlight_min(subset=_subsetter(rb2.columns, ['Overall Position','Previous Overall Position']), color='lightgrey')
+            .highlight_max(subset=_subsetter(rb2.columns, ['Overall Time', 'Overall Gap']), color='lightgrey')
+            .highlight_max(subset=_subsetter(rb2.columns, ['Previous']), color='lightgrey')
+            .apply(bg_color,subset=_subsetter(rb2.columns, ['{} Overall'.format(ss), 'Overall Time','Overall Gap', 'Previous', 'Stage Overall', 'Penalty']))
+            .bar(subset=[c for c in rb2.columns if str(c).startswith('D')], align='zero', color=[ '#5fba7d','#d65f5f'])
+            .bar(subset=[c for c in rb2.columns if str(c).startswith('SS') and not str(c).endswith('_overall')], align='zero', color=[ '#5fba7d','#d65f5f'])
+            .set_table_styles(styles)
+            #.format({'total_amt_usd_pct_diff': "{:.2%}"})
+           )
+        if caption is not None:
+            s2.set_caption(caption)
+        output = s2.render().replace('nan','').replace('_overall','<br/>Overall')
 
     #nan issue: https://github.com/pandas-dev/pandas/issues/21527
-    return s2.render().replace('nan','').replace('_overall','<br/>Overall')
+    return output
 
 import os
 import time

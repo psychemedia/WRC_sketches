@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.4.2
+#       jupytext_version: 1.6.0
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -119,10 +119,20 @@ def _gapToLeaderBar(Xtmpq, typ, milliseconds=True, flip=True, items=None):
             items = items.index.to_list()
         #Xtmpq.loc[items,k] = Xtmpq[_tmp].loc[items].apply(sparkline2, typ='bar', dot=True)
         num_partitions = num_cores if num_cores < len(Xtmpq[_tmp]) else len(Xtmpq[_tmp])
-        Xtmpq.loc[items, k] = dd.from_pandas(Xtmpq[_tmp].loc[items],
+        
+        # TO DO - May throw a 'passing list-likes with missing labels' error...
+        #https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#indexing-deprecate-loc-reindex-listlike
+        iitems = [i for i in items if i in Xtmpq.index]
+        # TO DO: do we need to pass more data for rebasing; need a rebase data then filter
+        # data pipleine for charts
+        Xtmpq.loc[iitems, k] = dd.from_pandas(Xtmpq[_tmp].loc[iitems],
                                           npartitions=num_partitions).map_partitions(lambda df: df.apply(lambda x : sparkline2(x, typ='bar', dot=True)), 
                                                                                        meta=pd.Series(dtype=object)).compute(scheduler='processes')
+        #_tmp2 = dd.from_pandas(Xtmpq[_tmp].reindex(items),
+        #                                  npartitions=num_partitions).map_partitions(lambda df: df.apply(lambda x : sparkline2(x, typ='bar', dot=True)), 
+        #                                                                               meta=pd.Series(dtype=object)).compute(scheduler='processes')
 
+        #Xtmpq.loc[_tmp2.index, k] = _tmp2
     Xtmpq = Xtmpq.drop(_tmp, 1)
     return Xtmpq 
 
@@ -152,9 +162,18 @@ def _positionStep(Xtmpq, typ, items=None):
             items = items.index.to_list() 
         #Xtmpq.loc[items, k]= Xtmpq[_tmp].loc[items].apply(sparklineStep)
         num_partitions = num_cores if num_cores < len(items) else len(items)
-        Xtmpq.loc[items, k] = dd.from_pandas(Xtmpq[_tmp].loc[items],
-                                             npartitions=num_partitions).map_partitions(lambda df: df.apply(sparklineStep), meta=pd.Series(dtype=object)).compute(scheduler='processes')
         
+        # TO DO - May throw a 'passing list-likes with missing labels' error...
+        #https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#indexing-deprecate-loc-reindex-listlike
+        #Xtmpq.loc[items, k] = dd.from_pandas(Xtmpq[_tmp].loc[items],
+        #                                     npartitions=num_partitions).map_partitions(lambda df: df.apply(sparklineStep), meta=pd.Series(dtype=object)).compute(scheduler='processes')
+        iitems = [i for i in items if i in Xtmpq.index]
+        # TO DO: do we need to pass more data for rebasing; need a rebase data then filter
+        # data pipleine for charts
+        Xtmpq.loc[iitems, k] = dd.from_pandas(Xtmpq[_tmp].loc[iitems],
+                                             npartitions=num_partitions).map_partitions(lambda df: df.apply(sparklineStep), meta=pd.Series(dtype=object)).compute(scheduler='processes')
+        #print(_tmp2.index, Xtmpq.index)
+        #Xtmpq.loc[_tmp2.index, k] = _tmp2
     Xtmpq = Xtmpq.drop(_tmp, 1)
     return Xtmpq 
 
@@ -278,7 +297,7 @@ def _rebased_pace_times(ewrc, rebase, rally_class='all'):
 
     _distances = ewrc.stage_distances
     #display(_distances)
-    # TO DO - this doesn't necessarily handled cancelled stages properly and may scale incorrect stages
+    # TO DO - this doesn't necessarily handle cancelled stages properly and may scale incorrect stages
     #_df = (_times / _distances[:len(_times)] ).round(3)
     _df = (_times / _distances ).round(3)
 
@@ -462,11 +481,14 @@ def rally_report(ewrc, rebase, codes=None, rally_class=None, rally_championship=
     
     #print('ffs', codes)
     xcols = df_overall.columns
+    print('probe 0, xcols are', xcols) # List of columns relating to stages
     
     #rebase is the index value
     #tmp = pd.merge(codes, df_rally_overall[['Class']], how='left', left_index=True, right_index=True)
     tmp = pd.merge(codes, ewrc.df_allInOne[['carNum']],
                    how='left', left_index=True, right_index=True)
+    
+    print('probe 1', tmp.columns) # Returns: carNum
     #tmp = pd.merge(tmp, df_entry_list[['Class','carNum']], how='left', on='carNum')
     #https://stackoverflow.com/a/11982843/454773
     df_entry_list = ewrc.get_entry_list()
@@ -475,6 +497,8 @@ def rally_report(ewrc, rebase, codes=None, rally_class=None, rally_championship=
     #print(tmp[-1:].index)
     #If we want the charts relative to overall,
     # we need to assemble them at least on cars ranked above lowest ranked car in codes
+    
+    print('probe 2', tmp.columns) # Returns: carNum, Class
     
     #But we could optimise by getting rid of lower ranked cars
     #eg we can get the row index for a given index value as:
@@ -503,15 +527,19 @@ def rally_report(ewrc, rebase, codes=None, rally_class=None, rally_championship=
                                    'overall', False, False, codes),
                left_index=True, right_index=True)
     except:
+        print('borked out for some reason on overall gap to leader...')
         pass
     #print(tmp[-1:].index)
     #overallPosition: step line chart showing evolution of overall position
+    
+    print('probe 3', tmp.columns) # Returns: carNum, Class
     
     #We need to pass a position table in
     xx=_positionStep(df_overall_pos[xcols][:(overall_idx+1)], 
                      'overall', codes)[['overallPosition']]
     tmp = pd.merge(tmp, xx, left_index=True, right_index=True)
 
+    print('probe 4', tmp.columns) # Returns: 'carNum', 'Class', 'overallPosition'
     
     # stageWinnerGap: bar chart showing gap to stage winner
     
@@ -522,8 +550,9 @@ def rally_report(ewrc, rebase, codes=None, rally_class=None, rally_championship=
     #df_stages_rebased_to_overall_leader = df_stages[xcols].apply(_rebaseTimes, basetimes=leaderStagetimes, axis=1)
     #Now rebase to the stage winner
     #df_stages_rebased_to_stage_winner = df_stages_rebased_to_overall_leader[xcols].apply(_rebaseTimes, basetimes=df_stages_rebased_to_overall_leader.min(), axis=1)
+    df_stages_rebased_to_stage_winner = ewrc.df_stages_rebased_to_stage_winner
     try:
-        df_stages_rebased_to_stage_winner = ewrc.df_stages_rebased_to_stage_winner
+        
     
         #The gapToLeaderBar needs to return the gap to the stage winner
         tmp = pd.merge(tmp,_gapToLeaderBar(-df_stages_rebased_to_stage_winner[xcols][:(overall_idx+1)], 'stages', False, False, codes),
@@ -531,14 +560,23 @@ def rally_report(ewrc, rebase, codes=None, rally_class=None, rally_championship=
         #In the preview the SS_N_stages bars are wrong because we have not rebased yet
         tmp.rename(columns={'stagesGapToLeader':'stageWinnerGap'},inplace=True)
     except:
-        pass
+        print('borked on stages cap to leander')
+    
+    print('probe 5', tmp.columns) # Returns: 'carNum', 'Class', 'overallPosition'
+    
     # stagePosition: step chart showing stage positions
     df_stages_pos = df_stages.rank(method='min')
     df_stages_pos.columns = range(1,df_stages_pos.shape[1]+1)
-    xx=_positionStep(df_stages_pos[xcols][:(overall_idx+1)],
+    # TO DO - ERROR - if we have cancelled stages, then df_stages_pos is short...
+    # We can't just truncate because we need to make sure we drop the right stage columns
+    # zz is long, yy is short
+    print('zz',xcols, 'yy', df_stages_pos.columns , 'zz',)
+    xx=_positionStep(df_stages_pos[[_x for _x in xcols if _x in df_stages_pos.columns]][:(overall_idx+1)],
                  'stages', codes)['stagesPosition']
     tmp = pd.merge(tmp, xx, left_index=True, right_index=True)
 
+    print('probe 6', tmp.columns) # Returns: 'carNum', 'Class', 'overallPosition', 'stagesPosition'
+    
     #Rebase
     cols = [c for c in tmp.columns if c.startswith('SS')]
     tmp[cols] = tmp[cols].apply(_rebaseTimes, bib=rebase, axis=0)
@@ -589,6 +627,7 @@ def rally_report(ewrc, rebase, codes=None, rally_class=None, rally_championship=
     moveColumn(tmp, 'carModel', pos=2)
     
     if postfilter:
+        print('In postfilter...')
         tmp=tmp[tmp.index.isin(postfilter)]
         
         # Now calculate the overallPosition, overallGap, stagePosition and stageWinner gap relative to this population
@@ -637,6 +676,7 @@ def rally_report(ewrc, rebase, codes=None, rally_class=None, rally_championship=
 # wREBASE='/entryinfo/61496-grossi-toidukaubad-viru-rally-2020/2702011/'
 
 # + tags=["active-ipynb"]
+# from IPython.display import HTML
 # tmp, s2 = rally_report(ewrc, wREBASE, codes=['/entryinfo/61496-grossi-toidukaubad-viru-rally-2020/2721397/', '/entryinfo/61496-grossi-toidukaubad-viru-rally-2020/2702011/'])#codes='EMV1') #codes='all'
 # display(HTML(s2))
 # -
@@ -736,6 +776,9 @@ def rally_report2(ewrc, cl=None, carNum=None, rally_class=None, rally_championsh
     display(Image(_))
     print(_)
 
+
+# + tags=["active-ipynb"]
+# ewrc.get_entry_list()
 
 # + tags=["active-ipynb"]
 # from ipywidgets import fixed
@@ -845,6 +888,276 @@ import numpy as np
 # + tags=["active-ipynb"]
 # import matplotlib.patches as patches
 
+# +
+from matplotlib.ticker import MaxNLocator
+
+
+def pace_map(ewrc, rebase='stage_winner',
+             rally_class='all', PACEMAX = 2,  compared_with=None, narrow_compare=True,
+             title=None, stretch=True, drop=False, filename=None):
+    """Pace map chart."""
+    
+    def _pace_df(df):
+        """"""
+        dff = df.T.reset_index().melt(id_vars='index')
+        dff = pd.merge(dff, ewrc.df_allInOne[['carNum']],
+                       how='left', left_on='entryId', right_index=True)
+        dff['entryId'] = dff['entryId'].astype('category')
+
+        dff['x0'] = dff['index'].apply(lambda x: xy[x-1][0] )
+        dff['x1'] = dff['index'].apply(lambda x: xy[x-1][1] )
+        dff['xm'] = (dff['x0'] + dff['x1'])/2
+        return dff
+
+    
+    if not ewrc:
+        return
+
+    if title is None:
+        title = f'Pace Report rebased to {rebase}'
+    
+    df = paceReport(ewrc, rebase=rebase, rally_class=rally_class)
+    #print(rebase)
+    #print(rally_class)
+    #display(df)
+    
+    # Stretch will scale the width of a stage relative to the stage distance
+    # At the moment this includes the cancelled stages
+    if stretch:
+        xy = [_ for _ in zip(ewrc.stage_distances.cumsum().shift(fill_value=0).round(2), 
+                                 ewrc.stage_distances.cumsum().round(2)) ]
+    else:
+        xy = [_ for _ in zip(range(ewrc.stage_distances.size),
+                             range(1, ewrc.stage_distances.size+1))]
+
+    dff = _pace_df(df)
+    if dff.empty:
+        return
+    
+    #display(dff)
+    
+    # Need to tweak the whole chart to be able to show / hide not run stages
+    # Need to tweak whole chart to show / hide cancelled stages
+    if drop:
+        pass
+        
+    _ymin = 0
+
+    # Set pacemax to be at least the min gap
+    if PACEMAX < dff['value'].min():
+        PACEMAX = dff['value'].min() * 1.5
+        
+    PACEMAX = PACEMAX+0.1
+
+    # TO DO - check we have a df to generate list from
+    lines = dff.apply(lambda x: [(x['x0'], x['value']), (x['x1'], x['value'])],
+                                      axis=1).to_list()
+
+    # This is part of a fudge to try to get categorical line coloring
+    # This has one entry per stage, cancelled or not
+    _entries = [True if (pd.notna(xy[0][1]) and pd.notna(xy[1][1]) 
+                                and xy[0][1] <= PACEMAX) else False for xy in lines]
+
+    lines = [xy for xy in lines if (pd.notna(xy[0][1]) and pd.notna(xy[1][1]) 
+                                    and xy[0][1] <= PACEMAX)]
+
+    if not lines:
+        # Need to increase PACEMAX
+        return
+
+    #N = len(set(dff['entryId'].cat.codes))+1
+    #lc = mc.LineCollection(lines, array=dff['entryId'].cat.codes,
+    #                       cmap=discrete_cmap(N, 'brg'), linewidths=2)
+
+    N = len(set(dff[_entries]['entryId'].cat.codes))+1
+    #The lookup rebases arbitrary category codes into sequentially enumerated codes
+    lookup = {j:i for i,j in enumerate(set(dff[_entries]['entryId'].cat.codes))}
+    
+    colormap = discrete_cmap(N, 'brg')
+    lc = mc.LineCollection(lines, array=np.array([lookup[c] for c in dff[_entries]['entryId'].cat.codes]),
+                           cmap=colormap, linewidths=2)
+
+    fig, ax = plt.subplots(figsize=(12,8))
+
+    plt.box(on=None)
+    plt.grid(axis='y')
+    ax.xaxis.set_ticks_position('none')
+    ax.yaxis.set_ticks_position('none') 
+
+
+    ax.add_collection(lc)
+
+    #Add labels for each car - simple dodge to improve readability
+    #Need to group by each x0, and then do left and right in stage rank order
+    offset=True
+    for x0, xm, y, s in zip(dff['x0'], dff['xm'], dff['value'], dff['carNum']):
+        if pd.notna(y) and y <= PACEMAX and y >= -PACEMAX:
+            offset = not offset
+            plt.text((not offset)*x0+offset*(xm), y, s, size=10)
+            if y < _ymin:
+                _ymin = y
+
+    ax.figsize = (16,6)
+    ax.autoscale()
+    #ax.set_facecolor('xkcd:salmon')
+    ax.margins(0.1)
+
+    # TO DO - add lines to demarcate days
+
+    plt.gca().invert_yaxis()
+
+    ymax, ymin = ax.get_ylim()
+    xmax, xmin = ax.get_xlim()
+
+    _ymax = ymax if ymax < PACEMAX else PACEMAX
+    _ymin = ymin if ymin > -PACEMAX else -PACEMAX
+    
+    #Add background colour to show +/- compared with another driver
+    # We need to make sure we dodge cancelled stages correctly
+    if compared_with:
+        # The dff has the required values?
+        for i in zip(df.T[compared_with]<0, 
+                     dff[dff['entryId']==compared_with]['x0'],
+                     dff[dff['entryId']==compared_with]['x1'],
+                     dff[dff['entryId']==compared_with]['value']):
+            color = 'pink' if i[0] else 'lightgreen'
+            if narrow_compare:
+                rect = patches.Rectangle((i[1],0),i[2]-i[1],i[3],
+                                     color=color)
+                # Add the patch to the Axes
+                ax.add_patch(rect)
+            else:
+                ax.axvspan(i[0][0], i[0][1], alpha=0.5, color=color)
+    if 1==2:
+        for i in zip(xy, df.T[compared_with]<0, dff[dff['entryId']==compared_with]['value']):
+            color = 'pink' if i[1] else 'lightgreen'
+            if narrow_compare:
+                rect = patches.Rectangle((i[0][0],0),i[0][1]-i[0][0],i[2],
+                                     color=color)
+                # Add the patch to the Axes
+                ax.add_patch(rect)
+            else:
+                ax.axvspan(i[0][0], i[0][1], alpha=0.5, color=color)
+
+
+    #Add stage labels
+    for _i, _xy in enumerate(xy):
+        plt.text((_xy[0]+_xy[1])/2, _ymin-0.5, _i+1, size=10,
+                bbox=dict(facecolor='red', alpha=0.5))
+
+
+    #Add title
+    plt.text(0, _ymin-0.7, title, size=10)
+    
+    if stretch:
+        for _x in ewrc.stage_distances.cumsum():
+            ax.axvline( x=_x, color='lightgrey', linestyle=':')
+    else:
+        for (_, _x) in xy:
+            ax.axvline( x=_x, color='lightgrey', linestyle=':')
+
+    ax.set_ylabel("Off the pace (s/km)")
+    if stretch:
+        ax.set_xlabel("Accumulated competitive distance (km)")
+    else:
+        #ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax.xaxis.set_major_formatter(plt.NullFormatter())
+        ax.set_xlabel(None)
+
+    ax.set_ylim( _ymax, _ymin-0.3 )
+    
+    fig.suptitle("Chart by RallyDataJunkie\nData via ewrc-results.com",
+                 horizontalalignment='left',
+                 verticalalignment ='top',
+                 x=0.99, y=0.01)
+    
+    if filename:
+        plt.savefig(filename, facecolor='white', transparent=False)
+        
+    return ax
+
+# +
+# TO DO
+
+
+# This can be reconciled with _rebased_pace_times?
+# How do we rebase? delta compared to stage winner, etc
+def _stage_speeds(ewrc, rebase=None,  percent=False):
+    """Calculate speeds per stage as raw speed or delta to rebase."""
+    _df = ewrc.df_stages
+    # Filter by class
+    _times = _inclass_cars(ewrc, _df, rally_class=rally_class, typ='entryId')
+
+    #display(_df.shape)
+    #_times = _df.apply(_rebaseTimes, bib=rebase, axis=0)
+
+    _distances = ewrc.stage_distances
+    #display(_distances)
+    # TO DO - this doesn't necessarily handle cancelled stages properly and may scale incorrect stages
+    #_df = (_times / _distances[:len(_times)] ).round(3)
+    _df = (_distances / (_times / 3600) ).round(3)
+    
+    # Calculate percent times according to fastest
+    if percent:
+        _df = 100 * _df / _df.min(skipna=True)
+    elif rebase:
+        # For rebase, we actually want to find the delta
+        _df = _df.apply(_rebaseTimes, bib=rebase, axis=0)
+
+    return _df
+    
+    
+def speedReport(ewrc, rebase=None, show=False, rally_class='all'):
+    '''
+    Speed on a stage in km/h.
+    Rebasing returns the speed delta in km/h.
+    '''
+
+    if not ewrc:
+        return
+
+    ewrc.set_rebased_times()
+    ewrc.get_itinerary()
+    
+    _df= _stage_speeds(ewrc, rebase, rally_class=rally_class)
+    if show:
+        display(_df)
+    #display(f'a {_df.shape}')
+    #display(_df)
+    _df =  _df.dropna(how='all', axis=1)
+    #display(f'b {_df.shape}')
+    return _df
+
+#df = speedReport(ewrc, rebase=rebase, rally_class=rally_class)
+
+
+# + tags=["active-ipynb"]
+# _stage_speeds(ewrc, percent=True)
+
+# + tags=["active-ipynb"]
+# _stage_speeds(ewrc, rebase='/entryinfo/61496-grossi-toidukaubad-viru-rally-2020/2721397/')
+# -
+
+# TO DO
+def speed_map_basis(ewrc, title=None, stretch=True,):
+    """
+    Plot the relative speeds of each driver on each stage.
+    """
+    
+    if not ewrc:
+        return
+
+    if title is None:
+        title = f'Speed Report.'
+    
+    if stretch:
+        xy = [_ for _ in zip(ewrc.stage_distances.cumsum().shift(fill_value=0).round(2), 
+                                 ewrc.stage_distances.cumsum().round(2)) ]
+    else:
+        xy = [_ for _ in zip(range(ewrc.stage_distances.size),range(1,ewrc.stage_distances.size+1))]
+
+
+
 # + tags=["active-ipynb"]
 #
 #
@@ -929,170 +1242,6 @@ import numpy as np
 #
 # ax.set_ylim( _ymax, _ymin-0.3 );
 
-# +
-from matplotlib.ticker import MaxNLocator
-
-
-def pace_map(ewrc, rebase='stage_winner',
-             rally_class='all', PACEMAX = 2,  compared_with=None, narrow_compare=True,
-             title=None, stretch=True, drop=False, filename=None):
-    """Pace map chart."""
-    
-    def _pace_df(df):
-        
-        dff = df.T.reset_index().melt(id_vars='index')
-        dff = pd.merge(dff, ewrc.df_allInOne[['carNum']],
-                       how='left', left_on='entryId', right_index=True)
-        dff['entryId'] = dff['entryId'].astype('category')
-
-        dff['x0'] = dff['index'].apply(lambda x: xy[x-1][0] )
-        dff['x1'] = dff['index'].apply(lambda x: xy[x-1][1] )
-        dff['xm'] = (dff['x0'] + dff['x1'])/2
-        return dff
-
-    
-    if not ewrc:
-        return
-
-    if title is None:
-        title = f'Pace Report rebased to {rebase}'
-    
-    df = paceReport(ewrc, rebase=rebase, rally_class=rally_class)
-    #print(rebase)
-    #print(rally_class)
-    #display(df)
-    
-    if stretch:
-        xy = [_ for _ in zip(ewrc.stage_distances.cumsum().shift(fill_value=0).round(2), 
-                                 ewrc.stage_distances.cumsum().round(2)) ]
-    else:
-        xy = [_ for _ in zip(range(ewrc.stage_distances.size),range(1,ewrc.stage_distances.size+1))]
-
-    dff = _pace_df(df)
-    if dff.empty:
-        return
-    
-    #display(dff)
-    
-    #Need to tweak the whole chart to be able to show not run stages
-    if drop:
-        pass
-        
-    _ymin = 0
-
-    # Set pacemax to be at least the min gap
-    if PACEMAX < dff['value'].min():
-        PACEMAX = dff['value'].min() * 1.5
-        
-    PACEMAX = PACEMAX+0.1
-
-    # TO DO - check we have a df to generate list from
-    lines = dff.apply(lambda x: [(x['x0'],x['value']),(x['x1'],x['value'])],
-                                      axis=1).to_list()
-
-    #This is part of a fudge to try to get categorical line coloring
-    _entries = [True if (pd.notna(xy[0][1]) and pd.notna(xy[1][1]) 
-                                and xy[0][1] <= PACEMAX) else False for xy in lines]
-
-    lines = [xy for xy in lines if (pd.notna(xy[0][1]) and pd.notna(xy[1][1]) 
-                                    and xy[0][1] <= PACEMAX)]
-
-    if not lines:
-        # Need to increase PACEMAX
-        return
-
-    #N = len(set(dff['entryId'].cat.codes))+1
-    #lc = mc.LineCollection(lines, array=dff['entryId'].cat.codes,
-    #                       cmap=discrete_cmap(N, 'brg'), linewidths=2)
-
-    N = len(set(dff[_entries]['entryId'].cat.codes))+1
-    #The lookup rebases arbitrary category codes into sequentially enumerated codes
-    lookup = {j:i for i,j in enumerate(set(dff[_entries]['entryId'].cat.codes))}
-    
-    colormap = discrete_cmap(N, 'brg')
-    lc = mc.LineCollection(lines, array=np.array([lookup[c] for c in dff[_entries]['entryId'].cat.codes]),
-                           cmap=colormap, linewidths=2)
-
-    fig, ax = plt.subplots(figsize=(12,8))
-
-    plt.box(on=None)
-    plt.grid(axis='y')
-    ax.xaxis.set_ticks_position('none')
-    ax.yaxis.set_ticks_position('none') 
-
-
-    ax.add_collection(lc)
-
-    #Add labels for each car - simple dodge to improve readability
-    #Need to group by each x0, and then do left and right in stage rank order
-    offset=True
-    for x0, xm, y, s in zip(dff['x0'], dff['xm'], dff['value'], dff['carNum']):
-        if pd.notna(y) and y <= PACEMAX and y >= -PACEMAX:
-            offset = not offset
-            plt.text((not offset)*x0+offset*(xm), y, s, size=10)
-            if y < _ymin:
-                _ymin = y
-
-    ax.figsize = (16,6)
-    ax.autoscale()
-    #ax.set_facecolor('xkcd:salmon')
-    ax.margins(0.1)
-
-    # TO DO - add lines to demarcate days
-
-    plt.gca().invert_yaxis()
-
-    ymax, ymin = ax.get_ylim()
-    xmax, xmin = ax.get_xlim()
-
-    _ymax = ymax if ymax < PACEMAX else PACEMAX
-    _ymin = ymin if ymin > -PACEMAX else -PACEMAX
-    
-    #Add background colour to show +/- compared with another driver
-    if compared_with:
-        for i in zip(xy, df.T[compared_with]<0, dff[dff['entryId']==compared_with]['value']):
-            color = 'pink' if i[1] else 'lightgreen'
-            if narrow_compare:
-                rect = patches.Rectangle((i[0][0],0),i[0][1]-i[0][0],i[2],
-                                     color=color)
-                # Add the patch to the Axes
-                ax.add_patch(rect)
-            else:
-                ax.axvspan(i[0][0], i[0][1], alpha=0.5, color=color)
-
-
-    #Add stage labels
-    for _i, _xy in enumerate(xy):
-        plt.text((_xy[0]+_xy[1])/2, _ymin-0.5, _i+1, size=10,
-                bbox=dict(facecolor='red', alpha=0.5))
-
-
-    #Add title
-    plt.text(0, _ymin-0.7, title, size=10)
-    
-    if stretch:
-        for _x in ewrc.stage_distances.cumsum():
-            ax.axvline( x=_x, color='lightgrey', linestyle=':')
-    else:
-        for (_, _x) in xy:
-            ax.axvline( x=_x, color='lightgrey', linestyle=':')
-
-    ax.set_ylabel("Off the pace (s/km)")
-    if stretch:
-        ax.set_xlabel("Accumulated competitive distance (km)")
-    else:
-        #ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        ax.xaxis.set_major_formatter(plt.NullFormatter())
-        ax.set_xlabel(None)
-
-    ax.set_ylim( _ymax, _ymin-0.3 )
-    
-    if filename:
-        plt.savefig(filename)
-        
-    return ax
-
-
 # + tags=["active-ipynb"]
 # xy
 
@@ -1163,9 +1312,14 @@ def pace_map(ewrc, rebase='stage_winner',
 # #pilot = 'Evans'
 # rebase=None
 # + run_control={"marked": false}
+#This chart drops cancelled stages (gives a bettter sense of the pace trend)
+
+
 def off_the_pace_chart(ewrc, rally_class='all',
                        stretch=True, figsize=(16,6), rebase=None,
                        filename=None, size=5):
+    """Plot the pace evolution over stages,
+       optionally rebased to a specified entry."""
     if not ewrc:
         return
 
@@ -1182,7 +1336,7 @@ def off_the_pace_chart(ewrc, rally_class='all',
             size =_size + 1
         dff = _inclass_cars(ewrc, dff, rally_class).head(size)
         dff.apply(_rebaseTimes, bib=rebase, axis=0)
-        # TO DO - sould we get rid of this escape or properly handly reason why?
+        # TO DO - should we get rid of this escape or properly handly reason why?
         if dff.empty:
             return
         #Need to now subtract that driver's times
@@ -1243,15 +1397,22 @@ def off_the_pace_chart(ewrc, rally_class='all',
                         markersize=3, mec='grey', c='grey') #
 
 
-    #Add marker for stage winner
+    # Add marker for stage winner
     # dff.min() gives the minimum (rebased) stage time (So need to cope w/ NA?)
+    #display(dff)
+    # The winner stage is a list of (car, stage) pairs for not cancelled stages
     winner_stage = sorted(list(dff[dff==dff.min()].stack().index), key=lambda x: x[1])
-    for (_x,_y) in winner_stage:
+    #display(dff_cumsumT)
+    for (i, (_x,_y)) in enumerate(winner_stage):
+        # i is just a count of run stages, _y is the stage number
         if not stretch:
-            ax.plot(_y, dff_cumsum.loc[_x,_y],
+            ax.plot(_y, dff_cumsum.loc[_x, i],
                     marker='D', markersize=2, c='red')
         else:
-            ax.plot(xy[_y-1][1], dff_cumsumT.iloc[_y-1][winner_stage[_y-1][0]],
+            # TO DO - this throws an error if we have a cancelled stage?
+            #ax.plot(xy[_y-1][1], dff_cumsumT.iloc[_y-1][winner_stage[_y-1][0]],
+            #        marker='D', markersize=2, c='red')
+            ax.plot(xy[i][1], dff_cumsumT.iloc[i][_x],
                     marker='D', markersize=2, c='red')
 
     if pilot in ewrc.carFromEntry:
@@ -1266,10 +1427,13 @@ def off_the_pace_chart(ewrc, rally_class='all',
 
 
     #Add stage labels
+    # Need to identify cancelled stages
+    _stageNums = [i+1 for (i,j) in enumerate(ewrc.df_itinerary['Cancelled'].tolist()) if not j]
     _ymin=0
     if stretch:
         for( _i, _xy) in  [(_i, _xy) for (_i, _xy) in enumerate(xy)][:len(winner_stage)]:
-            plt.text((_xy[0]+_xy[1])/2, _ymin-5, _i+1, size=10,
+            # Need to drop the label of any missing stages
+            plt.text((_xy[0]+_xy[1])/2, _ymin-5, _stageNums[_i], size=10,
                     bbox=dict(facecolor='red', alpha=0.5))
     else:
         ylim = plt.ylim()
@@ -1285,8 +1449,13 @@ def off_the_pace_chart(ewrc, rally_class='all',
 
     plt.gca().invert_yaxis()
     
+    fig.suptitle("Chart by RallyDataJunkie\nData via ewrc-results.com",
+             horizontalalignment='left',
+             verticalalignment ='top',
+             x=0.99, y=0.01)
+        
     if filename:
-        plt.savefig(filename)
+        plt.savefig(filename, facecolor='white', transparent=False)
 
     return ax
 
