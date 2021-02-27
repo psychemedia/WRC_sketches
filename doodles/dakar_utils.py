@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.6.0
+#       jupytext_version: 1.9.1
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -236,7 +236,7 @@ def color_negative(val):
     return 'color: %s' % color
 
 
-def moreStyleDriverSplitReportBaseDataframe(rb2, ss, caption=None, precision=1):
+def moreStyleDriverSplitReportBaseDataframe(rb2, ss, caption=None, precision=1, barmax=None):
     ''' Style the driver split report dataframe. '''
     
     if rb2.empty: return ''
@@ -288,8 +288,8 @@ def moreStyleDriverSplitReportBaseDataframe(rb2, ss, caption=None, precision=1):
             .highlight_max(subset=_subsetter(rb2.columns, ['Overall Time', 'Overall Gap']), color='lightgrey')
             .highlight_max(subset=_subsetter(rb2.columns, ['Previous']), color='lightgrey')
             .apply(bg_color,subset=_subsetter(rb2.columns, ['{} Overall'.format(ss), 'Overall Time','Overall Gap', 'Previous', 'Stage Overall', 'Penalty']))
-            .bar(subset=[c for c in rb2.columns if str(c).startswith('D')], align='zero', color=[ '#5fba7d','#d65f5f'])
-            .bar(subset=[c for c in rb2.columns if str(c).startswith('SS') and not str(c).endswith('_overall')], align='zero', color=[ '#5fba7d','#d65f5f'])
+            .bar(subset=[c for c in rb2.columns if str(c).startswith('D')], align='zero', color=[ '#5fba7d','#d65f5f'], vmax=barmax)
+            .bar(subset=[c for c in rb2.columns if str(c).startswith('SS') and not str(c).endswith('_overall')], align='zero', color=[ '#5fba7d','#d65f5f'], vmax=barmax)
             .set_table_styles(styles)
             #.format({'total_amt_usd_pct_diff': "{:.2%}"})
            )

@@ -212,20 +212,9 @@ def _get_stages_from_homepage(soup):
 # +
 #There may be diffferent results categories, eg classes, championships
 # These are keyed by an extra parameter on the end of the stub
-def _get_categories_form_homepage(soup):
-    """Retrieve championships and classes."""
-    _categories = []
-    categories = soup.find_all('div', {'class': 'rzlist40'})
-    if categories:
-        for category in categories:
-            items = []
-            for a in category.find_all('a'):
-                items.append( (a.text, a['href']) )
-            _categories.append(items)
-    return _categories
 
-def _get_categories_form_homepage(soup):
-    """Retrieve championships and classes."""
+def _get_categories_from_homepage(soup):
+    """Retrieve categories."""
     _categories = []
     #categories = soup.find_all('div', {'class': 'rzlist40'})
     categories = soup.find_all('div', {'class': 'd-flex flex-wrap justify-content-center fs-091'})
@@ -238,6 +227,11 @@ def _get_categories_form_homepage(soup):
             _categories.append(items)
     return _categories
 
+def get_categories_from_homepage(stub):
+    homepage_url=f'{base_url}/results/{stub}/'
+    soup = soupify(homepage_url)
+    return _get_categories_from_homepage(soup)
+
 
 # -
 
@@ -248,7 +242,7 @@ def homepage_quick_scrape(stub, params=None, path=None):
     print(homepage_url)
     soup = soupify(homepage_url)
     stages = _get_stages_from_homepage(soup)
-    categories = _get_categories_form_homepage(soup)
+    categories = _get_categories_from_homepage(soup)
     return stages, categories
 
 
@@ -811,17 +805,12 @@ def get_itinerary(stub, params=None):
 # Get the entry list.
 
 entrylist_path = "https://www.ewrc-results.com/entries/{stub}/?{params}"
+EWRC_URL_BASE = "https://www.ewrc-results.com{path}"
 
 
-def get_entry_list(stub, params=None):
-    params = urllib.parse.urlencode(params) if params else ''
-    entrylist_url = entrylist_path.format(stub=stub, params=params)
-    print(entrylist_url)
-    soup = soupify(entrylist_url)
-    if not soup:
-        return pd.DataFrame()
-
-    
+# +
+def _get_entry_list_details(soup):
+    """Scrape the details of an entry list page."""
     base_cols = ['CarNum', 'DriverName','CoDriverName','Team','Car','Class', 'Category', 'Type']
     
     entrylist_table = soup.find('div',{'class':'mt-1'})
@@ -850,11 +839,21 @@ def get_entry_list(stub, params=None):
         base_cols.append(f'Meta_{i}')
     df_entrylist.columns = base_cols
     df_entrylist['carNum'] = df_entrylist['CarNum'].str.extract(r'#(.*)')
-    
+    return df_entrylist
+
+def get_entry_list(stub, params=None):
+    """Get a single entry list."""
+    params = urllib.parse.urlencode(params) if params else ''
+    entrylist_url = entrylist_path.format(stub=stub, params=params)
+    soup = soupify(entrylist_url)
+    if not soup:
+        return pd.DataFrame()
+
+    df_entrylist = _get_entry_list_details(soup)
     # TEST CLASS CHECK TO DO
     #df_entrylist["Class"] = df_entrylist["Class"].apply(lambda x: str(x).strip().split()[0])
-    
     return df_entrylist.dropna(subset=['carNum'])
+
 
 
 # + tags=["active-ipynb"]
@@ -862,7 +861,76 @@ def get_entry_list(stub, params=None):
 # #get_entry_list('66881-aci-rally-monza-2020/') #Breaks
 # #61089-rally-islas-canarias-2020  breaks
 # get_entry_list('61089-rally-islas-canarias-2020/')
+
+# +
+
+soup = soupify('https://www.ewrc-results.com/entries/61089-rally-islas-canarias-2020/?leg=1')
+_get_entry_list_details(soup)
+
+# +
+YEAR=2021
+
+def _get_starting_order(soup, year=YEAR):
+    """Scrape starting order table."""
+    _table = soup.find('table',{'class': 'results'})
+    if not _table:
+        return pd.DataFrame()
+
+    _df = dfify(_table)
+    _df.columns = ['startNum', 'carNum_str', 'driverNav', 'car', 'class', 'date_str']
+    _df['carNum'] = _df['carNum_str'].str.strip('#').astype(int)
+    _df['startNum'] = _df['startNum'].astype(int)
+    _df['startTime'] = _df['date_str'] + f' {year}'
+    _df['startTime'] = pd.to_datetime(_df['startTime'], format=f'%d. %m. %H:%M %Y')
+    return _df
+
+def get_start_lists(stub, params=None):
+    """Get start lists for each leg."""
+    
+    def _get_soup(stub, params):
+        entrylist_url = entrylist_path.format(stub=stub, params=params)
+        print(entrylist_url)
+        soup = soupify(entrylist_url)
+        return soup
+  
+    params = urllib.parse.urlencode(params) if params else ''
+    soup = _get_soup(stub, params=params)
+
+    if not soup:
+        return{}
+    
+    year = soup.find('h3').text.strip().split()[-1]
+    try:
+        year = int(year)
+    except:
+        year = YEAR
+
+    leg_entry_lists = {}
+    _legs = soup.find('div', {'class': 'mx-auto'}).find_all('a')
+    
+    # The start list for a leg disregards class, etc. All entries are listed
+    for _leg in _legs:
+        leg_stub = _leg['href']
+        #params['leg'] = urllib.parse.parse_qs(urllib.parse.urlparse(leg_stub).query)['leg'][0]
+        leg_soup = _get_soup(leg_stub.split('/')[2], leg_stub.split('?')[1])
+        _leg_entry_list = _get_starting_order(leg_soup, year=year)
+        leg_entry_lists[leg_stub.split('=')[-1]] = {'stub': leg_stub,
+                                                    'label': _leg.text,
+                                                    'startlist_df': _leg_entry_list}
+    return leg_entry_lists
+
+# + tags=["active-ipynb"]
+# get_start_lists('61089-rally-islas-canarias-2020/')
 # -
+
+# TO DO 
+# For the ewrc class, we need to be able to call a single function that:
+# - returns the entry list;
+# - returns the start list dict
+# Then in the ewrc class, imporve cacheing by:
+# - initialising the entry list once
+# - if live, check each start list and if one doesn't yet exist, update it.
+
 
 # ## Rebasers
 #
@@ -904,10 +972,12 @@ class EWRC:
         self.stages = [] if stages is None else stages
         self.stage_result_links = None
         
+        self.start_lists = {}
         self.raw_base_stages = []
         self.raw_base_categories = []
         self.base_stages = []
         self.base_classes = []
+        self.base_categories = []
         self.base_championships = []
         self.rally_championship = ''
         self.rally_class = ''
@@ -955,7 +1025,7 @@ class EWRC:
         """
         Generate a URL for a particular selection.
         """
-        # There seems o be a snafu in the arg name used on different paths for the class/championship.
+        # There seems to be a snafu in the arg name used on different paths for the class/championship.
         # This means we need to craft params by hand depneding on the page we want to load.
         return f'{urljoin(self.base_url, self.stub, trailing=True)}?{urllib.parse.urlencode(params)}'
         
@@ -971,6 +1041,7 @@ class EWRC:
     
     def set_base_classes(self):
         """Retrieve base classes."""
+        # TO DO  - via get_categories_from_homepage(self.stub)[1] ?
         i = len(self.raw_base_categories)
         self.base_classes = {}
         for c in self.raw_base_categories[i-1]:
@@ -979,6 +1050,14 @@ class EWRC:
             else:
                 self.base_classes[c[0]] = ''
         return self.base_classes
+    
+    def set_base_categories(self):
+        """Retrieve base categories."""
+        self.base_categories = {c:u.split('&')[-1] for (c, u) in get_categories_from_homepage(self.stub)[0]}
+        for k in self.base_categories:
+            if '?' in self.base_categories[k]:
+                self.base_categories[k] = ''
+        return self.base_categories
     
     def set_base_championships(self):
         """Retrieve base championships."""
@@ -1049,6 +1128,7 @@ class EWRC:
             leaderStagetimes = self.df_stages.iloc[0]
             self.df_stages_rebased_to_overall_leader = self.df_stages.apply(_rebaseTimes,
                                                                             basetimes=leaderStagetimes, axis=1)
+            #print(self.df_stages.columns, self.df_stages_rebased_to_overall_leader.columns)
             #Now rebase to the stage winner
             self.df_stages_rebased_to_stage_winner = self.df_stages_rebased_to_overall_leader.apply(_rebaseTimes, basetimes=self.df_stages_rebased_to_overall_leader.min(), axis=1)
 
@@ -1110,6 +1190,13 @@ class EWRC:
         self.annotateEntryWithEventDriverId()
         return self.df_entry_list
     
+    def get_start_lists(self):
+        """Get start lists."""
+        # Start lists are updated through the rally so hard to cache if live.
+        if self.live or not self.start_lists:
+            self.start_lists = get_start_lists(self.stub)
+        return self.start_lists
+    
     def get_stage_result_links(self):
         if self.stage_result_links is None:
             self.stage_result_links = get_stage_result_links(self.stub, params={'sct':self.rally_championship, 'ct':self.rally_class})
@@ -1155,6 +1242,12 @@ class EWRC:
 # print('66881-aci-rally-monza-2020/'+'/') # stages 10 and 12 cancelled TO TEST BREAKS
 # # Also breaks '61089-rally-islas-canarias-2020/
 # ewrc=EWRC('61089-rally-islas-canarias-2020')
+
+# + tags=["active-ipynb"]
+# ewrc.set_base_categories(), ewrc.set_base_classes()
+
+# + tags=["active-ipynb"]
+# ewrc.get_start_lists()
 
 # + tags=["active-ipynb"]
 # ewrc.base_stages

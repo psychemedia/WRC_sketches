@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.6.0
+#       jupytext_version: 1.9.1
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -487,6 +487,7 @@ def rally_report(ewrc, rebase, codes=None, rally_class=None, rally_championship=
     #tmp = pd.merge(codes, df_rally_overall[['Class']], how='left', left_index=True, right_index=True)
     tmp = pd.merge(codes, ewrc.df_allInOne[['carNum']],
                    how='left', left_index=True, right_index=True)
+
     
     print('probe 1', tmp.columns) # Returns: carNum
     #tmp = pd.merge(tmp, df_entry_list[['Class','carNum']], how='left', on='carNum')
@@ -521,13 +522,22 @@ def rally_report(ewrc, rebase, codes=None, rally_class=None, rally_championship=
     #df_overall_rebased_to_leader = df_overall[xcols].apply(_rebaseTimes, basetimes=leaderTimes, axis=1)
     # TO DO - what if we are looking at a class or championship?
     # Rebase then needs to take what "overall" we mean?
+    
+    # TO DO - error - if the stage results aren't all in?
+    # The df_overall_rebased_to_leader is short.. 
     try:
         df_overall_rebased_to_leader = ewrc.df_overall_rebased_to_leader
+        # TO DO - this hack needs to be fixed in ewrc.df_overall_rebased_to_leader
+        for _c in xcols:
+            if _c not in df_overall_rebased_to_leader.columns:
+                print('hack fix 1 needs fixing', _c)
+                df_overall_rebased_to_leader[_c]=nan
         tmp = pd.merge(tmp,_gapToLeaderBar(-df_overall_rebased_to_leader[xcols][:(overall_idx+1)],
                                    'overall', False, False, codes),
                left_index=True, right_index=True)
     except:
-        print('borked out for some reason on overall gap to leader...')
+        print('borked out for some reason on overall gap to leader...',
+              tmp.columns, df_overall_rebased_to_leader.columns, xcols, overall_idx+1)
         pass
     #print(tmp[-1:].index)
     #overallPosition: step line chart showing evolution of overall position
@@ -552,15 +562,18 @@ def rally_report(ewrc, rebase, codes=None, rally_class=None, rally_championship=
     #df_stages_rebased_to_stage_winner = df_stages_rebased_to_overall_leader[xcols].apply(_rebaseTimes, basetimes=df_stages_rebased_to_overall_leader.min(), axis=1)
     df_stages_rebased_to_stage_winner = ewrc.df_stages_rebased_to_stage_winner
     try:
-        
-    
         #The gapToLeaderBar needs to return the gap to the stage winner
+        # TO DO - this hack needs to be fixed in ewrc.df_stages_rebased_to_stage_winner
+        for _c in xcols:
+            if _c not in df_stages_rebased_to_stage_winner.columns:
+                print('hack fix 2 needs fixing', _c)
+                df_stages_rebased_to_stage_winner[_c]=nan
         tmp = pd.merge(tmp,_gapToLeaderBar(-df_stages_rebased_to_stage_winner[xcols][:(overall_idx+1)], 'stages', False, False, codes),
                left_index=True, right_index=True)
         #In the preview the SS_N_stages bars are wrong because we have not rebased yet
         tmp.rename(columns={'stagesGapToLeader':'stageWinnerGap'},inplace=True)
     except:
-        print('borked on stages cap to leander')
+        print('borked on stages gap to leader', tmp.columns, df_stages_rebased_to_stage_winner.columns, xcols, overall_idx)
     
     print('probe 5', tmp.columns) # Returns: 'carNum', 'Class', 'overallPosition'
     
@@ -601,12 +614,14 @@ def rally_report(ewrc, rebase, codes=None, rally_class=None, rally_championship=
     #need a function get_final_or_latest()?
     try:
         df_rally_overall = ewrc.get_final()
-        tmp = pd.merge(tmp, df_rally_overall[['Pos']],
-                       how='left', left_index=True, right_index=True)
-        moveColumn(tmp, 'Pos', right_of='overallGapToLeader')
-        moveColumn(tmp, 'Class', pos=0)
     except:
-        pass
+        df_rally_overall  = df_overall[[xcols[-1]]].rank()
+        df_rally_overall.columns = ['Pos']
+    tmp = pd.merge(tmp, df_rally_overall[['Pos']],
+                   how='left', left_index=True, right_index=True)
+    moveColumn(tmp, 'Pos', right_of='overallGapToLeader')
+    moveColumn(tmp, 'Class', pos=0)
+
     try:
         #print('x',tmp[-1:].index)
         #tmp = pd.merge(tmp, df_rally_overall[['CarNum','Class Rank']], how='left', left_index=True, right_index=True)
@@ -639,7 +654,7 @@ def rally_report(ewrc, rebase, codes=None, rally_class=None, rally_championship=
         tmp = gapBar(tmp, column_signature_end='_stages', colname='stageWinnerGap')
         tmp = rankLine(tmp, column_signature_end='_stages', colname='stagesPosition')
         
-        # TO DO - overallGapToLeader - this is the delta of accumulated to min acculumulated time in column
+        # TO DO - overallGapToLeader - this is the delta of accumulated to min accumulated time in column
         # Grab the overall times
         tmp = pd.merge(tmp, df_overall, left_index=True, right_index=True, how='left')
         icols = []
@@ -667,9 +682,20 @@ def rally_report(ewrc, rebase, codes=None, rally_class=None, rally_championship=
     #tmp[ss_cols] = tmp[ss_cols].map('{:.2f}'.format)
     #is this the slow bit?
     #print('styling...')
+    
+    # TO DO - HACK - order is wrong?
+    tmp = tmp.sort_values(by='Pos')
+    
+    
+    # TO DO  - the barmax sets the max width of the in-cell horizontal bar chart
+    # as per https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.io.formats.style.Styler.bar.html
+    # TO DO - allow barmax to be set as a parameter from a slider?
+    #s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'', barmax=20)
     s2 = moreStyleDriverSplitReportBaseDataframe(tmp,'')
     #print('...done')
     return tmp, s2
+
+
 
 
 # + tags=["active-ipynb"]
@@ -1075,6 +1101,9 @@ def pace_map(ewrc, rebase='stage_winner',
         plt.savefig(filename, facecolor='white', transparent=False)
         
     return ax
+# -
+
+print('hello!')
 
 # +
 # TO DO
@@ -1103,7 +1132,6 @@ def _stage_speeds(ewrc, rebase=None,  percent=False):
     elif rebase:
         # For rebase, we actually want to find the delta
         _df = _df.apply(_rebaseTimes, bib=rebase, axis=0)
-
     return _df
     
     
@@ -1317,7 +1345,7 @@ def speed_map_basis(ewrc, title=None, stretch=True,):
 
 def off_the_pace_chart(ewrc, rally_class='all',
                        stretch=True, figsize=(16,6), rebase=None,
-                       filename=None, size=5):
+                       filename=None, size=5, maxdiff=30):
     """Plot the pace evolution over stages,
        optionally rebased to a specified entry."""
     if not ewrc:
@@ -1354,7 +1382,11 @@ def off_the_pace_chart(ewrc, rally_class='all',
     dff.set_index('carNum', drop=True, inplace=True)
     dff_cumsum = dff.cumsum(axis=1)
 
-
+    # TO DO - HACK
+    # Don't show cars a long time delta away
+    # Throws error later on becuase a key is missing
+    #dff_cumsum = dff_cumsum[(abs(dff_cumsum)>maxdiff).any(1)]
+    
     dff_cumsumT=dff_cumsum.T
 
     if stretch:
@@ -1447,7 +1479,14 @@ def off_the_pace_chart(ewrc, rally_class='all',
     plt.box(on=None)
     #ax.yaxis.set_ticks_position('none') 
 
+    yy = ax.get_ylim()
+    if abs(yy[0]) > maxdiff:
+        ax.set_ylim([-maxdiff, yy[1]])
+    if abs(yy[1]) > maxdiff:
+        ax.set_ylim([yy[0], maxdiff])
+        
     plt.gca().invert_yaxis()
+    
     
     fig.suptitle("Chart by RallyDataJunkie\nData via ewrc-results.com",
              horizontalalignment='left',
