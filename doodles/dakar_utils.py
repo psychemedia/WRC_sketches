@@ -200,7 +200,7 @@ import seaborn as sns
 from IPython.core.display import HTML
 import seaborn as sns
 
-from numpy import NaN
+#from numpy import NaN
 from math import nan
 
 def bg_color(s):

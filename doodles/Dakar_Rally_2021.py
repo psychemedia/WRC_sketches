@@ -7,9 +7,9 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.6.0
+#       jupytext_version: 1.16.4
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: Python 3 (ipykernel)
 #     language: python
 #     name: python3
 # ---
@@ -31,11 +31,12 @@
 import requests
 import pandas as pd
 
-from numpy import nan as NaN
+#from numpy import nan as NaN
+from numpy import nan
 # -
 
 import requests_cache
-requests_cache.install_cache('dakar_cache21', backend='sqlite',  expire_after=300)
+requests_cache.install_cache('dakar_cache25', backend='sqlite',  expire_after=300)
 
 # Timing data is provided in two forms:
 #
@@ -53,7 +54,7 @@ requests_cache.install_cache('dakar_cache21', backend='sqlite',  expire_after=30
 # - truck
 #
 
-YEAR = 2021 #2019
+YEAR = 2025 #2019
 STAGE = 1
 VTYPE = 'car'
 
@@ -1189,7 +1190,7 @@ def pivotRebasedSplits(rebasedSplits):
 from IPython.core.display import HTML
 import seaborn as sns
 
-from numpy import NaN
+#from numpy import NaN
 from math import nan
 
 def bg_color(s):
@@ -1236,7 +1237,7 @@ def cleanDriverSplitReportBaseDataframe(rb2, ss):
     #TO DO: set proper colnames
     if rb2.empty: return rb2
     
-    rb2=rb2.replace(0,NaN)
+    rb2=rb2.replace(0,nan)
     #rb2=rb2.fillna('') #This casts columns containing NA to object type which means we can't use nan processing
     
     #rb2['Road Position']=rb2['Road Position'].astype(float)
@@ -1645,7 +1646,7 @@ def getCurrPrevOverallRank(stage, vtype='car', rebase=None):
                              'Gap':'Previous Gap'}, inplace=True)
         prev['Previous'] = prev['Previous Gap'].dt.total_seconds()
     else:
-        prev=pd.DataFrame({'Bib':curr['Bib'],'Previous Overall Position':NaN,
+        prev=pd.DataFrame({'Bib':curr['Bib'],'Previous Overall Position':nan,
                            'Previous Time':pd.Timedelta(''),
                            'Previous Gap':pd.Timedelta(''), 
                            'Previous':pd.Timedelta('')})
